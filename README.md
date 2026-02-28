@@ -64,7 +64,7 @@ U-VLM achieves state-of-the-art performance:
 | Dataset | F1 | BLEU-mean | Decoder |
 |---------|-------|-----------|---------|
 | **CT-RATE** | **0.414** vs 0.258 | **0.349** vs 0.305 | 0.1B (scratch) |
-| **AbdomenAtlas 3.0** | **0.624** vs 0.518 | - | 0.1B (scratch) |
+| **AbdomenAtlas 3.0** | **0.624** vs 0.518 | **0.437** | 0.1B (scratch) |
 
 U-VLM uses only a 0.1B decoder trained from scratch, while compared methods use 7B+ pre-trained models, demonstrating that **well-designed vision encoder pretraining outweighs the benefits of 7B+ pre-trained language models**.
 
@@ -338,8 +338,8 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 U-VLM builds upon the robust [nnU-Net](https://github.com/MIC-DKFZ/nnUNet) framework. We are grateful to the nnU-Net development team for their foundational contributions to medical image segmentation. This work is developed and maintained by Medical Image Insights Co. Ltd. and Shanghai Jiao Tong University.
 
 <div align="center">
-  <img src="documentation/assets/yh_logo.png" height="40px" style="margin: 0 20px; vertical-align: middle;" />
-  <img src="documentation/assets/Sjtu-logo-standard-red.png" height="80px" style="margin: 0 20px; vertical-align: middle;" />
+  <img src="documentation/assets/yh_logo.png" height="40px" style="margin: 0 40px; vertical-align: middle;" />
+  <img src="documentation/assets/Sjtu-logo-standard-red.png" height="80px" style="margin: 0 40px; vertical-align: middle;" />
 </div>
 
 ---
