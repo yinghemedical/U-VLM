@@ -392,7 +392,7 @@ U-VLM builds upon the robust [nnU-Net](https://github.com/MIC-DKFZ/nnUNet) frame
 
 <div align="center">
   <img src="documentation/assets/yh_logo.png" height="70px" style="margin-right: 80px; vertical-align: middle;" />
-  <img src="documentation/assets/Sjtu-logo-standard-red.png" height="110px" style="margin-left: 80px; vertical-align: middle;" />
+  <img src="documentation/assets/Sjtu-logo-standard-red.png" height="120px" style="margin-left: 80px; vertical-align: middle;" />
 </div>
 
 ---
