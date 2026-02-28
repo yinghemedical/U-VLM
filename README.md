@@ -111,10 +111,10 @@ conda activate uvlm
 Install PyTorch matching your CUDA version. Example for CUDA 12.4:
 
 ```bash
-pip install torch==2.6.0 torchvision --index-url https://download.pytorch.org/whl/cu124
+pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
 ```
 
-For other configurations, refer to the [PyTorch installation guide](https://pytorch.org/get-started/locally/).
+For other configurations, refer to the [PyTorch installation guide](https://pytorch.org/get-started/previous-versions/).
 
 ### Step 3: Install nnU-Net v2
 
