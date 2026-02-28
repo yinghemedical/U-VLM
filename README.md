@@ -391,8 +391,8 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 U-VLM builds upon the robust [nnU-Net](https://github.com/MIC-DKFZ/nnUNet) framework. We are grateful to the nnU-Net development team for their foundational contributions to medical image segmentation. This work is developed and maintained by Medical Image Insights Co. Ltd. and Shanghai Jiao Tong University.
 
 <div align="center">
-  <img src="documentation/assets/yh_logo.png" height="50px" style="margin-right: 80px; vertical-align: middle;" />
-  <img src="documentation/assets/Sjtu-logo-standard-red.png" height="80px" style="margin-left: 80px; vertical-align: middle;" />
+  <img src="documentation/assets/yh_logo.png" height="70px" style="margin-right: 80px; vertical-align: middle;" />
+  <img src="documentation/assets/Sjtu-logo-standard-red.png" height="110px" style="margin-left: 80px; vertical-align: middle;" />
 </div>
 
 ---
