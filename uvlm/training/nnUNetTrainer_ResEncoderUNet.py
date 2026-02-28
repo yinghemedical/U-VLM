@@ -1,7 +1,7 @@
 """
-nnUNetTrainer_ResEncoderUNet_only_seg.py
+nnUNetTrainer_ResEncoderUNet.py
 
-ResEncoderUNet trainer for segmentation only task.
+ResEncoderUNet trainer for segmentation task (Stage 1).
 Data flow and encoder processing follows nnUNetTrainer_UVLM.
 Segmentation loss and validation follows nnUNetTrainer.
 """
@@ -78,7 +78,7 @@ class nnUNetDataLoaderWholeImage(DataLoader):
         return {'data': data_all, 'seg': seg_all, 'properties': case_properties, 'keys': selected_keys}
 
 
-class nnUNetTrainer_ResEncoderUNet_only_seg(nnUNetTrainer):
+class nnUNetTrainer_ResEncoderUNet(nnUNetTrainer):
     """
     ResEncoderUNet trainer for segmentation only.
 
@@ -839,3 +839,7 @@ class nnUNetTrainer_ResEncoderUNet_only_seg(nnUNetTrainer):
         """
         self.print_to_log_file("Skipping perform_actual_validation (will evaluate on separate test set)")
         return
+
+
+# Backward compatibility alias
+nnUNetTrainer_ResEncoderUNet_only_seg = nnUNetTrainer_ResEncoderUNet

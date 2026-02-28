@@ -10,7 +10,7 @@
 
 ### **U-VLM: Hierarchical Vision Language Modeling for Report Generation**
 
-U-VLM is a **3D vision-language model** that enables hierarchical modeling for radiology report generation through **(1) progressive training** from segmentation to classification to report generation, and **(2) multi-layer visual injection** that routes U-Net encoder features to corresponding language model layers. By leveraging dense per-voxel supervision and multi-scale feature fusion, U-VLM achieves state-of-the-art performance using only a 0.1B decoder trained from scratch.
+We propose U-VLM, which enables hierarchical vision-language modeling in both training and architecture: (1) progressive training from segmentation to classification to report generation, and (2) multi-layer visual injection that routes U-Net encoder features to corresponding language model layers. Each training stage can leverage different datasets without unified annotations. U-VLM achieves state-of-the-art performance on CT-RATE (F1: 0.414 vs 0.258, BLEU-mean: 0.349 vs 0.305) and AbdomenAtlas 3.0 (F1: 0.624 vs 0.518 for segmentation-based detection) using only a 0.1B decoder trained from scratch, demonstrating that well-designed vision encoder pretraining outweighs the benefits of 7B+ pre-trained language models.
 
 > **Authors**: Pengcheng Shi¹, Minghui Zhang², Kehan Song¹, Jiaqi Liu¹, Yun Gu²✉, Xinglin Zhang¹✉
 >
@@ -36,11 +36,11 @@ Automated radiology report generation for 3D medical imaging is key for reducing
   <img src="documentation/assets/u-vlm_framework.png" alt="U-VLM Framework" width="95%"/>
 </p>
 
-We propose U-VLM, which enables hierarchical vision-language modeling in both training and architecture:
+We propose U-VLM, a vision-language framework that enables hierarchical modeling in both training and architecture: (1) progressive training from segmentation to classification to report generation, and (2) multi-layer visual injection that routes U-Net encoder features to corresponding language model layers.
 
 ### Progressive Training
 
-U-VLM trains a shared U-Net encoder through three progressive stages following curriculum learning:
+The shared U-Net encoder is sequentially optimized through three stages following curriculum learning:
 
 - **Stage 1 - Segmentation Pretraining**: Learns spatial localization ("where") from segmentation annotations
 - **Stage 2 - Classification Pretraining**: Recognizes disease patterns ("what") from classification labels
@@ -50,7 +50,7 @@ Each stage can leverage **different datasets without unified annotations**.
 
 ### Multi-Layer Visual Injection
 
-U-Net dominates segmentation precisely because its hierarchical encoder and skip connections preserve multi-scale information. We extend this insight to vision-language modeling by routing U-Net encoder features to corresponding language model layers:
+U-Net dominates segmentation precisely because its hierarchical encoder and skip connections preserve multi-scale information. Following U-Net skip connections, we inject features from each encoder stage into specific language model layers:
 
 - **Deep encoder stages** → Early language layers (global semantics)
 - **Shallow encoder stages** → Later language layers (fine-grained details)
@@ -59,14 +59,12 @@ This multi-layer injection extends U-Net's skip connections to vision-language m
 
 ### Results
 
-U-VLM achieves state-of-the-art performance:
+U-VLM achieves F1 of 0.414 and BLEU-mean of 0.349 on CT-RATE, surpassing BTB3D (F1: 0.258, BLEU-mean: 0.305), and outperforms both end-to-end methods and segmentation-based detection on AbdomenAtlas 3.0 (F1: 0.624 vs 0.518). U-VLM uses only a 0.1B decoder trained from scratch, while compared methods use 7B+ pre-trained models.
 
 | Dataset | F1 | BLEU-mean | Decoder |
 |---------|-------|-----------|---------|
 | **CT-RATE** | **0.414** vs 0.258 | **0.349** vs 0.305 | 0.1B (scratch) |
 | **AbdomenAtlas 3.0** | **0.624** vs 0.518 | **0.437** | 0.1B (scratch) |
-
-U-VLM uses only a 0.1B decoder trained from scratch, while compared methods use 7B+ pre-trained models, demonstrating that **well-designed vision encoder pretraining outweighs the benefits of 7B+ pre-trained language models**.
 
 ---
 
@@ -83,7 +81,7 @@ U-VLM trains a shared U-Net encoder through three progressive stages, then conne
 
 **Language Decoder:**
 - Lightweight decoder: 0.1B parameters, 8 layers, 512 hidden dim, 8 heads (trained from scratch)
-- Alternative: Qwen3-4B with LoRA (rank 64, α=128) or full fine-tuning
+- Alternative: Qwen3-4B with LoRA (rank 64, α=128) or full fine-tuning (configurable via `use_lora` parameter)
 
 **Multi-Layer Visual Injection:**
 - Routes U-Net encoder features to corresponding language model layers
@@ -156,10 +154,57 @@ pip install git+https://github.com/salaniz/pycocoevalcap.git
 Preprocess the CT-RATE dataset for training:
 
 ```bash
+# Full pipeline: resize + reports + classification + merge
 python -m uvlm.preprocessing.preprocess_ct_rate_cls_report \
-    --source-dir /path/to/CT-RATE/train \
-    --output-dir /path/to/output \
-    --split train
+    --config-path /path/to/ct_rate_config.json \
+    all --train-input-dir /path/to/train --val-input-dir /path/to/val \
+        --output-dir /path/to/output \
+        --reports-input-dir /path/to/reports \
+        --cls-input-dir /path/to/classification
+
+# Or run individual steps:
+# Step 1: Resize nii.gz to blosc2
+python -m uvlm.preprocessing.preprocess_ct_rate_cls_report \
+    --config-path /path/to/ct_rate_config.json \
+    resize --input-dir /path/to/nii_files --output-dir /path/to/output
+
+# Step 2: Process reports
+python -m uvlm.preprocessing.preprocess_ct_rate_cls_report \
+    --config-path /path/to/ct_rate_config.json \
+    reports --input-csv /path/to/reports.csv --output-csv /path/to/output.csv \
+            --blosc2-dir /path/to/imagesTr
+```
+
+#### AbdomenAtlas 3.0 Dataset (Abdominal CT)
+
+Preprocess the AbdomenAtlas 3.0 dataset:
+
+```bash
+# Full segmentation pipeline: merge masks + resize to blosc2
+python -m uvlm.preprocessing.preprocess_abdomen_seg \
+    --config-path /path/to/abdomen_atlas_config.json \
+    all --input-dir /path/to/AbdomenAtlas \
+        --raw-output-dir /path/to/nnUNet_raw \
+        --preprocessed-output-dir /path/to/nnUNet_preprocessed
+
+# Classification and report pipeline
+python -m uvlm.preprocessing.preprocess_abdomen_cls_report \
+    --config-path /path/to/abdomen_atlas_config.json \
+    all --mask-only-dir /path/to/mask_only \
+        --image-only-dir /path/to/image_only \
+        --meta-csv /path/to/metadata.csv \
+        --images-dir /path/to/preprocessed_images \
+        --split-dir /path/to/TrainTestIDS \
+        --output-dir /path/to/output
+```
+
+#### ReXGroundingCT Dataset (Chest Segmentation)
+
+```bash
+python -m uvlm.preprocessing.preprocess_rexgrounding_seg \
+    --config-path /path/to/rexgrounding_ct_config.json \
+    all --raw-input-dir /path/to/nnUNet_raw \
+        --output-dir /path/to/nnUNet_preprocessed
 ```
 
 **Output**: CSV files containing `blosc2_path`, disease labels, and radiology reports.
@@ -220,9 +265,17 @@ Attach language decoder and train end-to-end for report generation:
 nnUNetv2_train DATASET_ID 3d_fullres FOLD -tr nnUNetTrainer_UVLM \
     --mode only_report
 
-# Alternative: Qwen3-4B with LoRA fine-tuning
+# Alternative: Qwen3-4B with LoRA fine-tuning (default)
+nnUNetv2_train DATASET_ID 3d_fullres FOLD -tr nnUNetTrainer_UVLM_Qwen3
+
+# Alternative: Qwen3-4B with full parameter fine-tuning
+# Set use_lora=False in the plan's network_arch_init_kwargs
 nnUNetv2_train DATASET_ID 3d_fullres FOLD -tr nnUNetTrainer_UVLM_Qwen3
 ```
+
+**Qwen3 Training Modes:**
+- **LoRA fine-tuning** (`use_lora=True`, default): Only trains LoRA adapters, memory efficient
+- **Full fine-tuning** (`use_lora=False`): Trains all parameters, requires more GPU memory
 
 ### Running Inference
 
@@ -305,9 +358,9 @@ Example configuration for `network_arch_init_kwargs`:
 
 - [ ] **Paper Publication**: arXiv preprint release
 - [x] **Core Implementation**: Base code and architecture released
-- [ ] **Data Processing Scripts**: Complete preprocessing pipelines for CT-RATE and AbdomenAtlas
-- [ ] **Training Scripts**: Full multi-stage training codebase
-- [ ] **Inference Scripts**: Comprehensive inference and evaluation code
+- [x] **Data Processing Scripts**: Complete preprocessing pipelines for CT-RATE, AbdomenAtlas 3.0, and ReXGroundingCT
+- [x] **Training Scripts**: Full multi-stage training codebase
+- [x] **Inference Scripts**: Comprehensive inference and evaluation code
 - [ ] **Custom Fine-tuning**: Documentation and scripts for adaptation to new datasets
 
 ---

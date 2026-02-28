@@ -26,8 +26,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from .metrics.classification import calc_cls_metrics
-from .metrics.nlg import calc_nlg_metrics
+from uvlm.evaluation.metrics.classification import calc_cls_metrics
+from uvlm.evaluation.metrics.nlg import calc_nlg_metrics
 
 
 # Default classification columns for CT-RATE (18 classes)

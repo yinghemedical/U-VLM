@@ -1,8 +1,8 @@
 # Network architectures for U-VLM
 
-from .uvlm import UVLM, ResidualEncoder, ClassificationHead, LLMReportGenerator
-from .uvlm_qwen3 import UVLM_Qwen3, Qwen3LLMReportGenerator
-from .res_encoder_unet import ResEncoderUNet
+from uvlm.networks.uvlm import UVLM, ResidualEncoder, ClassificationHead, LLMReportGenerator
+from uvlm.networks.uvlm_qwen3 import UVLM_Qwen3, Qwen3LLMReportGenerator
+from uvlm.networks.res_encoder_unet import ResEncoderUNet
 
 __all__ = [
     'UVLM',
