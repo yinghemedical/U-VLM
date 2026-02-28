@@ -7,10 +7,6 @@ Supports two modes:
 2. LoRA fine-tuning (use_lora=True)
 
 Other components (Encoder, data loading, training pipeline, etc.) remain unchanged.
-
-Fix log (2026-02-19):
-1. Updated parameter grouping logic to adapt to the new network structure
-2. Separated management of outer vision_proj (320->512) and inner vision_proj (512->2560)
 """
 
 import os
