@@ -358,9 +358,9 @@ Example configuration for `network_arch_init_kwargs`:
 
 - [ ] **Paper Publication**: arXiv preprint release
 - [x] **Core Implementation**: Base code and architecture released
-- [x] **Data Processing Scripts**: Complete preprocessing pipelines for CT-RATE, AbdomenAtlas 3.0, and ReXGroundingCT
-- [x] **Training Scripts**: Full multi-stage training codebase
-- [x] **Inference Scripts**: Comprehensive inference and evaluation code
+- [ ] **Data Processing Scripts**: Complete preprocessing pipelines for CT-RATE, AbdomenAtlas 3.0, and ReXGroundingCT
+- [ ] **Training Scripts**: Full multi-stage training codebase
+- [ ] **Inference Scripts**: Comprehensive inference and evaluation code
 - [ ] **Custom Fine-tuning**: Documentation and scripts for adaptation to new datasets
 
 ---
