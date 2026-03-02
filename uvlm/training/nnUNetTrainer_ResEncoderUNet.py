@@ -839,7 +839,3 @@ class nnUNetTrainer_ResEncoderUNet(nnUNetTrainer):
         """
         self.print_to_log_file("Skipping perform_actual_validation (will evaluate on separate test set)")
         return
-
-
-# Backward compatibility alias
-nnUNetTrainer_ResEncoderUNet_only_seg = nnUNetTrainer_ResEncoderUNet
