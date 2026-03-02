@@ -1,7 +1,11 @@
 """
 UVLM_Qwen3: Report generation network using Qwen3-4B as LLM
 
-Maintains the same structure as the lightweight LLM version, only replacing the LLM part with Qwen3-4B + LoRA.
+Maintains the same structure as the lightweight LLM version, only replacing the LLM part with Qwen3-4B.
+Supports two training modes:
+1. LoRA fine-tuning (use_lora=True, default): Only trains LoRA adapters, memory efficient
+2. Full fine-tuning (use_lora=False): Trains all parameters, requires more GPU memory
+
 Does not support deepstack functionality.
 """
 
