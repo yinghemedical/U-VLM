@@ -22,9 +22,9 @@ We propose U-VLM, which enables hierarchical vision-language modeling in both tr
 
 ---
 
-## 📰 Latest Updates
+## Latest Updates
 
-- **Feb 28, 2026**: 📄 Initial core code implementation released
+- **Feb 28, 2026**: Initial core code implementation released
 
 ---
 
@@ -97,7 +97,7 @@ U-VLM trains a shared U-Net encoder through three progressive stages, then conne
 
 ---
 
-## 🔧 Setup
+## Setup
 
 ### Step 1: Environment Creation
 
@@ -145,7 +145,7 @@ pip install git+https://github.com/salaniz/pycocoevalcap.git
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Data Preparation
 
@@ -354,7 +354,7 @@ Example configuration for `network_arch_init_kwargs`:
 
 ---
 
-## 🗺️ Development Roadmap
+## Development Roadmap
 
 - [x] **Paper Publication**: arXiv preprint release
 - [x] **Core Implementation**: Base code and architecture released
@@ -365,7 +365,7 @@ Example configuration for `network_arch_init_kwargs`:
 
 ---
 
-## 📖 Citation
+## Citation
 
 If U-VLM contributes to your research, please cite our work:
 
@@ -381,13 +381,13 @@ If U-VLM contributes to your research, please cite our work:
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🙏 Acknowledgements
+## Acknowledgements
 
 U-VLM builds upon the robust [nnU-Net](https://github.com/MIC-DKFZ/nnUNet) framework. We are grateful to the nnU-Net development team for their foundational contributions to medical image segmentation. This work is developed and maintained by Medical Image Insights Co. Ltd. and Shanghai Jiao Tong University.
 
@@ -398,7 +398,7 @@ U-VLM builds upon the robust [nnU-Net](https://github.com/MIC-DKFZ/nnUNet) frame
 
 ---
 
-## 💬 Contact
+## Contact
 
 For questions, issues, or collaborations, please contact:
 
