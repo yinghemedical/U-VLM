@@ -356,7 +356,7 @@ Example configuration for `network_arch_init_kwargs`:
 
 ## 🗺️ Development Roadmap
 
-- [ ] **Paper Publication**: arXiv preprint release
+- [x] **Paper Publication**: arXiv preprint release
 - [x] **Core Implementation**: Base code and architecture released
 - [ ] **Data Processing Scripts**: Complete preprocessing pipelines for CT-RATE, AbdomenAtlas 3.0, and ReXGroundingCT
 - [ ] **Training Scripts**: Full multi-stage training codebase
