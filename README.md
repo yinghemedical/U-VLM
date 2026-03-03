@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![arXiv](https://img.shields.io/badge/arXiv-Coming%20Soon-B31B1B.svg)]()
+[![arXiv](https://img.shields.io/badge/arXiv-2603.00479-B31B1B.svg)](https://arxiv.org/abs/2603.00479)
 [![GitHub](https://img.shields.io/badge/GitHub-U--VLM-181717?logo=github&logoColor=white)](https://github.com/yinghemedical/U-VLM)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
@@ -18,7 +18,7 @@ We propose U-VLM, which enables hierarchical vision-language modeling in both tr
 > ¹ Medical Image Insights Co. Ltd., Shanghai, China
 > ² Shanghai Jiao Tong University, Shanghai, China
 >
-> **Paper**: Coming Soon
+> **Paper**: [arXiv:2603.00479](https://arxiv.org/abs/2603.00479)
 
 ---
 
@@ -373,8 +373,9 @@ If U-VLM contributes to your research, please cite our work:
 @article{shi2026uvlm,
   title={U-VLM: Hierarchical Vision Language Modeling for Report Generation},
   author={Shi, Pengcheng and Zhang, Minghui and Song, Kehan and Liu, Jiaqi and Gu, Yun and Zhang, Xinglin},
-  journal={arXiv preprint arXiv:xxxx.xxxxx},
-  year={2026}
+  journal={arXiv preprint arXiv:2603.00479},
+  year={2026},
+  url={https://arxiv.org/abs/2603.00479}
 }
 ```
 
