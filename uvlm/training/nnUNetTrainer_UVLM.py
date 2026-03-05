@@ -63,19 +63,19 @@ from batchgenerators.dataloading.nondet_multi_threaded_augmenter import NonDetMu
 class nnUNetTrainer_UVLM(nnUNetTrainer):
     def __init__(self, plans: dict, configuration: str, fold: int, dataset_json: dict,
                  device: torch.device = torch.device('cuda')):
-        # Print U-VLM citation
-        print(
+        if 'continue_training' not in plans:
+            plans['continue_training'] = False
+        super().__init__(plans, configuration, fold, dataset_json, device)
+
+        # Print U-VLM citation using print_to_log_file (after super().__init__ so local_rank is available)
+        self.print_to_log_file(
             "\n#######################################################################\n"
             "Please cite the following paper when using U-VLM:\n"
             "Shi, P., Zhang, M., Song, K., Liu, J., Gu, Y., & Zhang, X. (2026). "
             "U-VLM: Hierarchical Vision Language Modeling for Report Generation. "
             "arXiv preprint arXiv:2603.00479.\n"
-            "#######################################################################\n"
-        )
-
-        if 'continue_training' not in plans:
-            plans['continue_training'] = False
-        super().__init__(plans, configuration, fold, dataset_json, device)
+            "#######################################################################\n",
+            also_print_to_console=True, add_timestamp=False)
 
         self.debug_save_input = False
 
