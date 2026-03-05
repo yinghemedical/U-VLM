@@ -370,15 +370,16 @@ Example configuration for `network_arch_init_kwargs`:
 If U-VLM contributes to your research, please cite our work:
 
 ```bibtex
-@article{shi2026uvlm,
-  title={U-VLM: Hierarchical Vision Language Modeling for Report Generation},
-  author={Shi, Pengcheng and Zhang, Minghui and Song, Kehan and Liu, Jiaqi and Gu, Yun and Zhang, Xinglin},
-  journal={arXiv preprint arXiv:2603.00479},
-  year={2026},
-  url={https://arxiv.org/abs/2603.00479}
+@misc{shi2026uvlmhierarchicalvisionlanguage,
+      title={U-VLM: Hierarchical Vision Language Modeling for Report Generation}, 
+      author={Pengcheng Shi and Minghui Zhang and Kehan Song and Jiaqi Liu and Yun Gu and Xinglin Zhang},
+      year={2026},
+      eprint={2603.00479},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2603.00479}, 
 }
 ```
-
 ---
 
 ## License
