@@ -29,9 +29,9 @@ from uvlm.dataloading.data_shape_preloader import preprocess_csv_with_shapes
 # nnU-Net base modules
 from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 from nnunetv2.training.data_augmentation.compute_initial_patch_size import get_patch_size
-from nnunetv2.training.logging.nnUNet_logger import nnUNetLogger
+from uvlm.training.logging.nnunet_logger import nnUNetLogger
 from nnunetv2.utilities.label_handling.label_handling import determine_num_input_channels, LabelManager
-from nnunetv2.utilities.collate_outputs import collate_outputs
+from uvlm.utilities.collate_outputs import collate_outputs
 from nnunetv2.utilities.helpers import dummy_context
 from nnunetv2.utilities.plans_handling.plans_handler import PlansManager
 from batchgenerators.utilities.file_and_folder_operations import join, save_json, maybe_mkdir_p, isfile
@@ -55,15 +55,27 @@ from transformers import AutoTokenizer
 from sklearn.metrics import accuracy_score, roc_auc_score
 from nnunetv2.training.lr_scheduler.polylr import PolyLRScheduler
 from uvlm.training.lr_scheduler.multigroup_polylr import MultiGroupPolyLRScheduler
-from nnunetv2.training.data_augmentation.custom_transforms.limited_length_multithreaded_augmenter import LimitedLenWrapper
 from nnunetv2.utilities.default_n_proc_DA import get_allowed_n_proc_DA
 from batchgenerators.dataloading.single_threaded_augmenter import SingleThreadedAugmenter
+from batchgenerators.dataloading.nondet_multi_threaded_augmenter import NonDetMultiThreadedAugmenter
 
 
 class nnUNetTrainer_UVLM(nnUNetTrainer):
     def __init__(self, plans: dict, configuration: str, fold: int, dataset_json: dict,
-                 unpack_dataset: bool = True, device: torch.device = torch.device('cuda')):
-        super().__init__(plans, configuration, fold, dataset_json, unpack_dataset, device)
+                 device: torch.device = torch.device('cuda')):
+        # Print U-VLM citation
+        print(
+            "\n#######################################################################\n"
+            "Please cite the following paper when using U-VLM:\n"
+            "Shi, P., Zhang, M., Song, K., Liu, J., Gu, Y., & Zhang, X. (2026). "
+            "U-VLM: Hierarchical Vision Language Modeling for Report Generation. "
+            "arXiv preprint arXiv:2603.00479.\n"
+            "#######################################################################\n"
+        )
+
+        if 'continue_training' not in plans:
+            plans['continue_training'] = False
+        super().__init__(plans, configuration, fold, dataset_json, device)
 
         self.debug_save_input = False
 
@@ -122,7 +134,7 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
         # ==================== CSV Dataset Configuration ====================
         # All parameters are passed from plan's network_arch_init_kwargs, no hardcoded defaults
         # Required parameters: csv_paths, series_id_column, case_id_column, cls_columns
-        # Optional parameter: report_column (for report generation)
+        # Optional parameters: question_column, answer_column (for VQA/Report generation)
 
         # CSV file paths (required)
         self.csv_paths = self.configuration_manager.network_arch_init_kwargs.get('csv_paths', None)
@@ -164,9 +176,11 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
             self.cls_columns = [self.cls_columns]
         self.print_to_log_file(f"Using cls_columns: {self.cls_columns} ({len(self.cls_columns)} classes)")
 
-        # Report text column name (optional, for report generation)
-        self.report_column = self.configuration_manager.network_arch_init_kwargs.get('report_column', 'report')
-        self.print_to_log_file(f"Using report column: {self.report_column}")
+        # Question and Answer column names (for VQA/Report generation)
+        self.question_column = self.configuration_manager.network_arch_init_kwargs.get('question_column', 'question')
+        self.answer_column = self.configuration_manager.network_arch_init_kwargs.get('answer_column', 'answer')
+        self.print_to_log_file(f"Using question column: {self.question_column}")
+        self.print_to_log_file(f"Using answer column: {self.answer_column}")
 
         # ==================== Classification Task Configuration ====================
         # Default: one classification task, multi-label classification with number of classes = len(cls_columns)
@@ -402,7 +416,7 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
             self.report_prompt = self.report_prompts[0]
 
             self.tokenizer_path = self.configuration_manager.network_arch_init_kwargs.get(
-                'tokenizer_path', "/path/to/tokenizer/"
+                'tokenizer_path', "/yinghepool/shipengcheng/Dataset/nnUNet/nnUNet_raw/Qwen3-4B"
             )
             os.environ['TOKENIZERS_PARALLELISM'] = 'false'
             self.report_tokenizer = AutoTokenizer.from_pretrained(
@@ -553,9 +567,25 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
         total_size = sum(p.numel() for p in params_list)
         return num_params, total_size / 1e6  # Convert to millions
 
-    def format_report_text_for_training(self, report_text: str) -> str:
-        prompt = random.choice(self.report_prompts)
-        return f"{prompt}{report_text}<|im_end|>"
+    def format_report_text_for_training(self, question: str, answer: str) -> str:
+        """
+        Format question-answer pair for training.
+        Uses question as input prompt and answer as target output.
+
+        Qwen2.5 format:
+        <|im_start|>user
+        {question}<|im_end|>
+        <|im_start|>assistant
+        {answer}<|im_end|>
+        """
+        if not question:
+            # Fallback to old behavior if no question provided
+            prompt = random.choice(self.report_prompts)
+            return f"{prompt}{answer}<|im_end|>"
+
+        # Format: question -> answer (VQA/Report style)
+        formatted = f"<|im_start|>user\n{question}<|im_end|>\n<|im_start|>assistant\n{answer}<|im_end|>"
+        return formatted
 
     def load_pretrained_encoder(self, checkpoint_path: str) -> None:
         """
@@ -984,6 +1014,13 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
 
     def initialize(self):
         if not self.was_initialized:
+            # Set batch size and oversample (same as parent class)
+            self._set_batch_size_and_oversample()
+
+            # Set dataset_class for nnUNet compatibility (CSV-based dataset doesn't need unpacking)
+            from uvlm.dataloading.dataset_csv_blosc2 import nnUNetDatasetCSVBlosc2
+            self.dataset_class = nnUNetDatasetCSVBlosc2
+
             # First create label manager and other basic components (order unchanged)
             simple_label_dict = {'background': 0}
             self.label_manager = LabelManager(label_dict=simple_label_dict, regions_class_order=None)
@@ -1264,14 +1301,51 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
             mt_gen_train = SingleThreadedAugmenter(dl_tr, tr_transforms)
             mt_gen_val = SingleThreadedAugmenter(dl_val, val_transforms)
         else:
-            mt_gen_train = LimitedLenWrapper(self.num_iterations_per_epoch, data_loader=dl_tr, transform=tr_transforms,
-                                             num_processes=allowed_num_processes, num_cached=6, seeds=None,
-                                             pin_memory=self.device.type == 'cuda', wait_time=0.02)
-            mt_gen_val = LimitedLenWrapper(self.num_val_iterations_per_epoch, data_loader=dl_val,
+            mt_gen_train = NonDetMultiThreadedAugmenter(data_loader=dl_tr, transform=tr_transforms,
+                                             num_processes=allowed_num_processes,
+                                             num_cached=max(6, allowed_num_processes // 2), seeds=None,
+                                             pin_memory=self.device.type == 'cuda', wait_time=0.002)
+            mt_gen_val = NonDetMultiThreadedAugmenter(data_loader=dl_val,
                                            transform=val_transforms, num_processes=max(1, allowed_num_processes // 2),
-                                           num_cached=3, seeds=None, pin_memory=self.device.type == 'cuda',
-                                           wait_time=0.02)
+                                           num_cached=max(3, allowed_num_processes // 4), seeds=None,
+                                           pin_memory=self.device.type == 'cuda', wait_time=0.002)
         return mt_gen_train, mt_gen_val
+
+    @staticmethod
+    def get_validation_transforms(
+            deep_supervision_scales: Union[List, Tuple, None],
+            is_cascaded: bool = False,
+            foreground_labels: Union[Tuple[int, ...], List[int]] = None,
+            regions: List[Union[List[int], Tuple[int, ...], int]] = None,
+            ignore_label: int = None,
+    ) -> AbstractTransform:
+        """
+        Override parent's get_validation_transforms to include RenameTransform and NumpyToTensor.
+        This is required because the data loader returns 'seg' key but train/validation steps expect 'target'.
+        """
+        val_transforms = []
+        val_transforms.append(RemoveLabelTransform(-1, 0))
+
+        if is_cascaded:
+            val_transforms.append(MoveSegAsOneHotToData(1, foreground_labels, 'seg', 'data'))
+
+        # Rename 'seg' to 'target' (required for validation_step to work correctly)
+        val_transforms.append(RenameTransform('seg', 'target', True))
+
+        if regions is not None:
+            # the ignore label must also be converted
+            val_transforms.append(ConvertSegmentationToRegionsTransform(list(regions) + [ignore_label]
+                                                                        if ignore_label is not None else regions,
+                                                                        'target', 'target'))
+
+        if deep_supervision_scales is not None:
+            val_transforms.append(DownsampleSegForDSTransform2(deep_supervision_scales, 0, input_key='target',
+                                                               output_key='target'))
+
+        # Convert to tensor
+        val_transforms.append(NumpyToTensor(['data', 'target'], 'float'))
+        val_transforms = Compose(val_transforms)
+        return val_transforms
 
     def set_deep_supervision_enabled(self, enabled: bool):
         """
@@ -1554,13 +1628,20 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
             cls_all = torch.from_numpy(batch['cls_all']).float().to(self.device, non_blocking=True)
             cls_task_list = [cls_all]
 
-        # Prepare report text tokens if available
+        # Prepare report text tokens if available (using question as prompt, answer as target)
         report_text_ids = None
         report_text_attention_mask = None
-        if ('report_texts' in batch and hasattr(self, 'report_tokenizer') and self.report_tokenizer is not None and
-            len(batch['report_texts']) > 0 and any(text.strip() for text in batch['report_texts'] if text)):
-            report_texts = batch['report_texts']
-            formatted_texts = [self.format_report_text_for_training(report_text) for report_text in report_texts]
+        question_texts = batch.get('question_texts', [])
+        answer_texts = batch.get('answer_texts', [])
+
+        if (len(question_texts) > 0 and len(answer_texts) > 0 and
+            hasattr(self, 'report_tokenizer') and self.report_tokenizer is not None and
+            any(text.strip() for text in answer_texts if text)):
+            # Format each sample with question as prompt and answer as target
+            formatted_texts = [
+                self.format_report_text_for_training(q, a)
+                for q, a in zip(question_texts, answer_texts)
+            ]
 
             tokenized = self.report_tokenizer(
                 formatted_texts,
@@ -1844,19 +1925,19 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
         if len(filtered_df) == 0:
             raise ValueError("No valid samples after shape validation")
 
-        # ==================== Stage 1.5: Filter empty report samples (only_report or both mode) ====================
-        if self.mode in ['only_report', 'both'] and self.report_column in filtered_df.columns:
+        # ==================== Stage 1.5: Filter empty answer samples (only_report or both mode) ====================
+        if self.mode in ['only_report', 'both'] and self.answer_column in filtered_df.columns:
             before_count = len(filtered_df)
-            empty_mask = filtered_df[self.report_column].isna() | (filtered_df[self.report_column].astype(str).str.strip() == '')
+            empty_mask = filtered_df[self.answer_column].isna() | (filtered_df[self.answer_column].astype(str).str.strip() == '')
             empty_count = empty_mask.sum()
             if empty_count > 0:
                 empty_ids = filtered_df.loc[empty_mask, self.series_id_column].tolist()
                 filtered_df = filtered_df[~empty_mask].reset_index(drop=True)
-                self.print_to_log_file(f"Filtered out {empty_count} samples with empty reports: {empty_ids[:10]}{'...' if len(empty_ids) > 10 else ''}")
-                self.print_to_log_file(f"Remaining {len(filtered_df)} samples after empty report filtering")
+                self.print_to_log_file(f"Filtered out {empty_count} samples with empty answers: {empty_ids[:10]}{'...' if len(empty_ids) > 10 else ''}")
+                self.print_to_log_file(f"Remaining {len(filtered_df)} samples after empty answer filtering")
 
             if len(filtered_df) == 0:
-                raise ValueError("No valid samples after empty report filtering")
+                raise ValueError("No valid samples after empty answer filtering")
 
         # ==================== Stage 2: Data balancing (optional) ====================
         if self.enable_balancing:
@@ -2049,8 +2130,17 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
 
             self.print_to_log_file(f"Split: {len(unique_cases_list)} unique cases -> {len(train_cases)} train cases ({len(train_keys)} samples), {len(val_cases)} val cases ({len(val_keys)} samples)")
 
-        # Save training case count for early stopping logic
+        # Save training case count, series count and sample count for early stopping logic
         self.num_train_cases = len(train_cases)
+        self.num_train_samples = len(train_keys)
+
+        # Calculate unique series IDs for training set (for early stopping)
+        train_series_ids = set()
+        for key in train_keys:
+            series_id = extract_series_id_from_key(key)
+            train_series_ids.add(series_id)
+        self.num_train_series = len(train_series_ids)
+        self.print_to_log_file(f"Training set: {self.num_train_cases} cases, {self.num_train_series} series IDs, {self.num_train_samples} samples")
 
         train_dict = {k: full_dataset.dataset[k] for k in train_keys}
         val_dict = {k: full_dataset.dataset[k] for k in val_keys}
@@ -2116,7 +2206,8 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
             csv_paths=self.csv_paths,
             series_id_column=self.series_id_column,
             cls_columns=self.cls_columns,
-            report_column=self.report_column
+            question_column=self.question_column,
+            answer_column=self.answer_column
         )
         dl_val = nnUNetDataLoader3DWithGlobalClsReportgenCSV(
             dataset_val, self.batch_size, patch_size, patch_size,
@@ -2125,8 +2216,22 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
             csv_paths=self.csv_paths,
             series_id_column=self.series_id_column,
             cls_columns=self.cls_columns,
-            report_column=self.report_column
+            question_column=self.question_column,
+            answer_column=self.answer_column
         )
+
+        # Calculate and print minimum epochs for early stopping
+        # This ensures the model sees enough samples before early stopping can trigger
+        if hasattr(self, 'num_train_samples') and self.num_train_samples is not None:
+            min_epochs = self.num_train_samples * 10 / (250 * self.batch_size)
+        elif hasattr(self, 'num_train_series') and self.num_train_series is not None:
+            min_epochs = self.num_train_series * 10 / (250 * self.batch_size)
+        elif hasattr(self, 'num_train_cases') and self.num_train_cases is not None:
+            min_epochs = self.num_train_cases * 10 / (250 * self.batch_size)
+        else:
+            min_epochs = 0
+        self.print_to_log_file(f"Early stopping: min_epochs = {min_epochs:.1f} (based on {getattr(self, 'num_train_samples', 'N/A')} samples, batch_size = {self.batch_size})")
+
         return dl_tr, dl_val
 
     def on_validation_epoch_start(self):
@@ -2154,14 +2259,19 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
             cls_all = torch.from_numpy(batch['cls_all']).float().to(self.device, non_blocking=True)
             cls_task_list = [cls_all]
 
-        # Prepare report text tokens if available (like v1, for validation)
+        # Prepare report text tokens if available (using question as prompt, answer as target)
         report_text_ids = None
         report_text_attention_mask = None
-        report_texts = None
-        if 'report_texts' in batch and hasattr(self, 'report_tokenizer') and self.report_tokenizer is not None:
-            report_texts = batch['report_texts']
-            # Use unified method to format report text (same format for validation)
-            formatted_texts = [self.format_report_text_for_training(report_text) for report_text in report_texts]
+        question_texts = batch.get('question_texts', [])
+        answer_texts = batch.get('answer_texts', [])
+
+        if (len(question_texts) > 0 and len(answer_texts) > 0 and
+            hasattr(self, 'report_tokenizer') and self.report_tokenizer is not None):
+            # Format each sample with question as prompt and answer as target
+            formatted_texts = [
+                self.format_report_text_for_training(q, a)
+                for q, a in zip(question_texts, answer_texts)
+            ]
 
             # Tokenize report texts
             tokenized = self.report_tokenizer(
@@ -2227,8 +2337,8 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
                         total_loss += self.report_loss_weight * report_loss
                         total_report_loss = report_loss
 
-                    if report_texts is not None:
-                        validation_dict['report_texts'] = report_texts
+                    if answer_texts is not None and len(answer_texts) > 0:
+                        validation_dict['answer_texts'] = answer_texts
 
         # Normalize loss by number of active tasks (same as train_step)
         num_active_tasks = 0
@@ -2274,8 +2384,8 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
                     skip_special_tokens=False  # Keep special tokens during training validation
                 )[0]  # First element is the generated reports
 
-            if report_texts is not None and len(report_texts) > 0:
-                ground_truth_reports = report_texts[0] if isinstance(report_texts[0], str) else str(report_texts[0])
+            if answer_texts is not None and len(answer_texts) > 0:
+                ground_truth_reports = answer_texts[0] if isinstance(answer_texts[0], str) else str(answer_texts[0])
 
         validation_dict['generated_reports'] = generated_reports
         validation_dict['generated_report_keys'] = [keys[0]] if len(keys) > 0 and generated_reports is not None else None
@@ -2378,8 +2488,14 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
 
         report_text_ids, report_text_attention_mask = None, None
         if self.mode in ['only_report', 'both']:
-            if hasattr(self, 'report_tokenizer') and self.report_tokenizer and batch.get('report_texts'):
-                formatted = [self.format_report_text_for_training(t) for t in batch['report_texts']]
+            question_texts = batch.get('question_texts', [])
+            answer_texts = batch.get('answer_texts', [])
+            if (hasattr(self, 'report_tokenizer') and self.report_tokenizer and
+                len(question_texts) > 0 and len(answer_texts) > 0):
+                formatted = [
+                    self.format_report_text_for_training(q, a)
+                    for q, a in zip(question_texts, answer_texts)
+                ]
                 tok = self.report_tokenizer(formatted, return_tensors='pt', padding=True, truncation=True,
                                             max_length=getattr(self, 'report_max_length', 512))
                 report_text_ids = tok['input_ids'].to(self.device)
@@ -2646,15 +2762,22 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
 
         # Early stopping logic: stop when train_loss and val_loss gap > 0.15 (prevent overfitting)
         # Only enable early stopping check when both train_loss and val_loss are below 0.95, avoid false triggers in early training
-        # And epoch count must be greater than num_train_cases*8/(250*batch_size)
+        # And epoch count must be greater than num_train_samples*10/(250*batch_size)
         train_loss = self.logger.my_fantastic_logging['train_losses'][-1]
         val_loss = self.logger.my_fantastic_logging['val_losses'][-1]
         loss_gap = train_loss - val_loss
         early_stopping_threshold = 0.95  # Only check early stopping when both losses are below this threshold
 
-        # Calculate minimum epoch requirement
-        if hasattr(self, 'num_train_cases') and self.num_train_cases is not None:
-            min_epochs = self.num_train_cases * 8 / (250 * self.batch_size)
+        # Calculate minimum epoch requirement based on sample count (10x samples / (250 * batch_size))
+        # This ensures the model sees enough samples before early stopping can trigger
+        if hasattr(self, 'num_train_samples') and self.num_train_samples is not None:
+            min_epochs = self.num_train_samples * 10 / (250 * self.batch_size)
+        elif hasattr(self, 'num_train_series') and self.num_train_series is not None:
+            # Fallback to series count if sample count is not available
+            min_epochs = self.num_train_series * 10 / (250 * self.batch_size)
+        elif hasattr(self, 'num_train_cases') and self.num_train_cases is not None:
+            # Fallback to case count if series count is not available
+            min_epochs = self.num_train_cases * 10 / (250 * self.batch_size)
         else:
             min_epochs = 0  # If not set, no minimum epoch limit
 

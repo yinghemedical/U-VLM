@@ -7,7 +7,8 @@ Required parameters (passed from plan):
     - csv_paths: List of CSV file paths
     - series_id_column: Column name for series-level identifiers in CSV (used for data loading and label matching)
     - cls_columns: List of classification column names (used for classification tasks and data balancing)
-    - report_column: Column name for report text (used for report generation)
+    - question_column: Column name for question/prompt (used as input prompt, default: 'question')
+    - answer_column: Column name for answer text (used as target output, default: 'answer')
 
 ID format explanation:
     - series_id: Series-level ID, e.g., train_18073_a_1
@@ -29,10 +30,10 @@ import os
 import pandas as pd
 import numpy as np
 from typing import Union, List, Optional, Dict, Any
-from nnunetv2.training.dataloading.base_data_loader import nnUNetDataLoaderBase
+from nnunetv2.training.dataloading.data_loader import nnUNetDataLoader
 
 
-class nnUNetDataLoader3DWithGlobalClsReportgen(nnUNetDataLoaderBase):
+class nnUNetDataLoader3DWithGlobalClsReportgen(nnUNetDataLoader):
     def __init__(
         self,
         *args,
@@ -40,19 +41,21 @@ class nnUNetDataLoader3DWithGlobalClsReportgen(nnUNetDataLoaderBase):
         csv_paths: Union[str, List[str]],
         series_id_column: str,
         cls_columns: List[str],
-        report_column: str,
+        question_column: str = 'question',
+        answer_column: str = 'answer',
         # Optional parameters
         use_sampling_weight: Optional[str] = None,
         **kwargs
     ):
         """
-        General data loader supporting classification and report generation.
+        General data loader supporting classification and VQA/Report generation.
 
         Parameters:
             csv_paths: CSV file path(s) (single file or list of files), must be passed from plan
             series_id_column: Column name for series-level identifiers in CSV, must be passed from plan
             cls_columns: List of classification column names, must be passed from plan
-            report_column: Column name for report text, must be passed from plan
+            question_column: Column name for question/prompt (used as input, default: 'question')
+            answer_column: Column name for answer text (used as target output, default: 'answer')
             use_sampling_weight: Sampling weight option
                 - None: No weighting, uniform sampling
                 - 'balanced': Use class-balanced sampling
@@ -61,7 +64,8 @@ class nnUNetDataLoader3DWithGlobalClsReportgen(nnUNetDataLoaderBase):
         self.csv_paths = csv_paths if isinstance(csv_paths, list) else [csv_paths]
         self.series_id_column = series_id_column
         self.cls_columns = cls_columns
-        self.report_column = report_column
+        self.question_column = question_column
+        self.answer_column = answer_column
         self.use_sampling_weight = use_sampling_weight
 
         super().__init__(*args, **kwargs)
@@ -103,9 +107,27 @@ class nnUNetDataLoader3DWithGlobalClsReportgen(nnUNetDataLoaderBase):
             if col not in self.df_full.columns:
                 missing_columns.append(f"cls_column: '{col}'")
 
-        # Check report column
-        if self.report_column not in self.df_full.columns:
-            missing_columns.append(f"report_column: '{self.report_column}'")
+        # Check question column (optional)
+        if self.question_column not in self.df_full.columns:
+            print(f"WARNING: question_column '{self.question_column}' not found in CSV. Question prompt will be empty.")
+            self.question_column = ""
+
+        # Check answer column (optional - try fallback columns if not found)
+        if self.answer_column not in self.df_full.columns:
+            # Try fallback columns for compatibility
+            fallback_columns = ['report', 'response', 'text']
+            found_fallback = None
+            for fallback in fallback_columns:
+                if fallback in self.df_full.columns:
+                    found_fallback = fallback
+                    break
+
+            if found_fallback:
+                print(f"INFO: answer_column '{self.answer_column}' not found in CSV, using fallback column '{found_fallback}'")
+                self.answer_column = found_fallback
+            else:
+                print(f"WARNING: answer_column '{self.answer_column}' not found in CSV. Answer text will be empty.")
+                self.answer_column = ""
 
         if missing_columns:
             available_columns = list(self.df_full.columns)
@@ -169,7 +191,8 @@ class nnUNetDataLoader3DWithGlobalClsReportgen(nnUNetDataLoaderBase):
                 - properties: List of properties
                 - keys: List of sample identifiers
                 - cls_all: Classification labels [B, num_cls]
-                - report_texts: List of report texts
+                - question_texts: List of question/prompt texts
+                - answer_texts: List of answer texts
         """
         # 1. Select samples for current batch
         selected_keys = self.get_indices()
@@ -182,8 +205,9 @@ class nnUNetDataLoader3DWithGlobalClsReportgen(nnUNetDataLoaderBase):
         # Classification labels
         cls_all = np.zeros((self.batch_size, len(self.cls_columns)), dtype=np.float32)
 
-        # Report texts
-        report_texts = []
+        # Question and answer texts
+        question_texts = []
+        answer_texts = []
 
         valid_count = 0
         for j, key in enumerate(selected_keys):
@@ -191,7 +215,7 @@ class nnUNetDataLoader3DWithGlobalClsReportgen(nnUNetDataLoaderBase):
             force_fg = self.get_do_oversample(j)
 
             # Load 3D data, segmentation, and properties
-            data, seg, properties = self._data.load_case(key)
+            data, seg, _, properties = self._data.load_case(key)
 
             if data is None:
                 print(f"WARNING: Failed to load case {key}, skipping")
@@ -209,12 +233,19 @@ class nnUNetDataLoader3DWithGlobalClsReportgen(nnUNetDataLoaderBase):
                     except (ValueError, TypeError):
                         cls_all[valid_count, k] = 0.0
 
-            # Extract report text
-            if sample_data is not None and pd.notna(sample_data[self.report_column]):
-                report_text = str(sample_data[self.report_column])
+            # Extract question text (input prompt)
+            if sample_data is not None and self.question_column and self.question_column in sample_data.index and pd.notna(sample_data[self.question_column]):
+                question_text = str(sample_data[self.question_column])
             else:
-                report_text = ""
-            report_texts.append(report_text)
+                question_text = ""
+            question_texts.append(question_text)
+
+            # Extract answer text (target output)
+            if sample_data is not None and self.answer_column and self.answer_column in sample_data.index and pd.notna(sample_data[self.answer_column]):
+                answer_text = str(sample_data[self.answer_column])
+            else:
+                answer_text = ""
+            answer_texts.append(answer_text)
 
             # Process image cropping and padding
             shape = data.shape[1:]
@@ -243,31 +274,33 @@ class nnUNetDataLoader3DWithGlobalClsReportgen(nnUNetDataLoaderBase):
 
             valid_count += 1
 
-        # Build return dictionary (always includes cls_all and report_texts)
+        # Build return dictionary (always includes cls_all, question_texts and answer_texts)
         return {
             'data': data_all[:valid_count] if valid_count < self.batch_size else data_all,
             'seg': seg_all[:valid_count] if valid_count < self.batch_size else seg_all,
             'properties': case_properties,
             'keys': selected_keys[:valid_count] if valid_count < self.batch_size else selected_keys,
             'cls_all': cls_all[:valid_count] if valid_count < self.batch_size else cls_all,
-            'report_texts': report_texts,
+            'question_texts': question_texts,
+            'answer_texts': answer_texts,
         }
 
 
 if __name__ == '__main__':
     # Test example
-    from nnunetv2.training.dataloading.nnUNet_dataset import nnUNetDataset
+    from nnunetv2.training.dataloading.nnunet_dataset import nnUNetDatasetNumpy
 
     # These parameters should be passed from the plan
     test_config = {
         'csv_paths': ['/path/to/your/train.csv'],
         'series_id_column': 'series_id',
         'cls_columns': ['lung_opacity', 'pleural_effusion'],
-        'report_column': 'report',
+        'question_column': 'question',
+        'answer_column': 'answer',
     }
 
     folder = '/path/to/preprocessed/data'
-    ds = nnUNetDataset(folder, 0)
+    ds = nnUNetDatasetNumpy(folder)
     dl = nnUNetDataLoader3DWithGlobalClsReportgen(
         ds, 5, (16, 16, 16), (16, 16, 16), 0.33, None, None,
         **test_config

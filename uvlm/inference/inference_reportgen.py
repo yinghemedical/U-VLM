@@ -303,7 +303,7 @@ def predict_on_gpu(gpu_id: int, files_queue: Queue, results_queue: Queue, args):
             break
 
         # Load case with validation (identical to trainer's load_case)
-        input_img, _, _ = dataset.load_case(case_key)
+        input_img, _, _, _ = dataset.load_case(case_key)
 
         # Validate input image
         if input_img is None:

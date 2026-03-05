@@ -179,7 +179,7 @@ class nnUNetPredictor:
 
         # Create temporary trainer instance to correctly initialize network parameters
         temp_trainer = trainer_class(plans, configuration_name, fold, dataset_json,
-                                     unpack_dataset=False, device=self.device)
+                                     device=self.device)
 
         # Build network using correctly initialized configuration parameters
         network = trainer_class.build_network_architecture(

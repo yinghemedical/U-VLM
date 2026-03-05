@@ -51,6 +51,9 @@ homepage = "https://github.com/yinghemedical/U-VLM"
 repository = "https://github.com/yinghemedical/U-VLM"
 documentation = "https://arxiv.org/abs/2603.00479"
 
+[project.scripts]
+uvlm_train = "uvlm.run.uvlm_train:run_training_entry"
+
 [project.optional-dependencies]
 quantization = [
     "bitsandbytes>=0.41.0"

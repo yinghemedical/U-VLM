@@ -25,20 +25,20 @@ from tqdm import tqdm
 
 from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 from uvlm.dataloading.dataset_csv_blosc2 import nnUNetDatasetCSVBlosc2
-from nnunetv2.training.dataloading.data_loader_3d import nnUNetDataLoader3D
-from nnunetv2.training.data_augmentation.custom_transforms.limited_length_multithreaded_augmenter import LimitedLenWrapper
+from nnunetv2.training.dataloading.data_loader import nnUNetDataLoader as nnUNetDataLoader3D
 from nnunetv2.training.loss.compound_losses import DC_and_CE_loss
 from nnunetv2.training.loss.deep_supervision import DeepSupervisionWrapper
 from nnunetv2.training.loss.dice import get_tp_fp_fn_tn, MemoryEfficientSoftDiceLoss
 from uvlm.networks.res_encoder_unet import ResEncoderUNet
 from nnunetv2.training.lr_scheduler.polylr import PolyLRScheduler
-from nnunetv2.utilities.collate_outputs import collate_outputs
+from uvlm.utilities.collate_outputs import collate_outputs
 from nnunetv2.utilities.helpers import dummy_context, empty_cache
 from nnunetv2.utilities.label_handling.label_handling import determine_num_input_channels
 from nnunetv2.utilities.default_n_proc_DA import get_allowed_n_proc_DA
 from batchgenerators.utilities.file_and_folder_operations import join, save_json, maybe_mkdir_p
 from batchgenerators.dataloading.data_loader import DataLoader
 from batchgenerators.dataloading.single_threaded_augmenter import SingleThreadedAugmenter
+from batchgenerators.dataloading.nondet_multi_threaded_augmenter import NonDetMultiThreadedAugmenter
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 # ==================== Whole Image Data Loader ====================
@@ -58,7 +58,7 @@ class nnUNetDataLoaderWholeImage(DataLoader):
         selected_keys = self.get_indices()
 
         # Load first case to determine shape
-        data_0, seg_0, _ = self._data.load_case(selected_keys[0])
+        data_0, seg_0, _, _ = self._data.load_case(selected_keys[0])
 
         # Preallocate memory
         data_shape = (self.batch_size, *data_0.shape)
@@ -69,7 +69,7 @@ class nnUNetDataLoaderWholeImage(DataLoader):
         case_properties = []
 
         for j, key in enumerate(selected_keys):
-            data, seg, properties = self._data.load_case(key)
+            data, seg, _, properties = self._data.load_case(key)
             case_properties.append(properties)
 
             data_all[j] = data
@@ -87,7 +87,7 @@ class nnUNetTrainer_ResEncoderUNet(nnUNetTrainer):
     """
 
     def __init__(self, plans: dict, configuration: str, fold: int, dataset_json: dict,
-                 unpack_dataset: bool = True, device: torch.device = torch.device('cuda')):
+                 device: torch.device = torch.device('cuda')):
         """Initialize the trainer."""
         # If the plan specifies a dataset_json_file, reload the corresponding dataset_json
         # This allows different scopes to use their own dataset_seg_xxx.json
@@ -98,8 +98,9 @@ class nnUNetTrainer_ResEncoderUNet(nnUNetTrainer):
             dataset_json_file = plans['dataset_json_file']
             dataset_json = load_json(join(nnUNet_preprocessed, dataset_name, dataset_json_file))
 
-        # Call parent init
-        super().__init__(plans, configuration, fold, dataset_json, unpack_dataset, device)
+        if 'continue_training' not in plans:
+            plans['continue_training'] = False
+        super().__init__(plans, configuration, fold, dataset_json, device)
 
         self.debug_save_input = False
 
@@ -455,15 +456,17 @@ class nnUNetTrainer_ResEncoderUNet(nnUNetTrainer):
             mt_gen_train = SingleThreadedAugmenter(dl_tr, tr_transforms)
             mt_gen_val = SingleThreadedAugmenter(dl_val, val_transforms)
         else:
-            mt_gen_train = LimitedLenWrapper(
-                self.num_iterations_per_epoch, data_loader=dl_tr, transform=tr_transforms,
-                num_processes=allowed_num_processes, num_cached=6, seeds=None,
-                pin_memory=self.device.type == 'cuda', wait_time=0.02
+            mt_gen_train = NonDetMultiThreadedAugmenter(
+                data_loader=dl_tr, transform=tr_transforms,
+                num_processes=allowed_num_processes,
+                num_cached=max(6, allowed_num_processes // 2), seeds=None,
+                pin_memory=self.device.type == 'cuda', wait_time=0.002
             )
-            mt_gen_val = LimitedLenWrapper(
-                self.num_val_iterations_per_epoch, data_loader=dl_val, transform=val_transforms,
-                num_processes=max(1, allowed_num_processes // 2), num_cached=3, seeds=None,
-                pin_memory=self.device.type == 'cuda', wait_time=0.02
+            mt_gen_val = NonDetMultiThreadedAugmenter(
+                data_loader=dl_val, transform=val_transforms,
+                num_processes=max(1, allowed_num_processes // 2),
+                num_cached=max(3, allowed_num_processes // 4), seeds=None,
+                pin_memory=self.device.type == 'cuda', wait_time=0.002
             )
 
         # Warm up the generators

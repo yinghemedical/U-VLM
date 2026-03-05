@@ -33,9 +33,8 @@ class nnUNetTrainer_UVLM_Qwen3(nnUNetTrainer_UVLM):
     """
 
     def __init__(self, plans: dict, configuration: str, fold: int, dataset_json: dict,
-                 unpack_dataset: bool = True, device: torch.device = torch.device('cuda')):
-        # First call parent class initialization
-        super().__init__(plans, configuration, fold, dataset_json, unpack_dataset, device)
+                 device: torch.device = torch.device('cuda')):
+        super().__init__(plans, configuration, fold, dataset_json, device)
 
         # Qwen3 specific configurations
         self.use_lora = self.configuration_manager.network_arch_init_kwargs.get('use_lora', True)
@@ -47,7 +46,7 @@ class nnUNetTrainer_UVLM_Qwen3(nnUNetTrainer_UVLM):
 
         # LLM model path
         self.llm_model_path = self.configuration_manager.network_arch_init_kwargs.get(
-            'llm_model_path', '/path/to/model/')
+            'llm_model_path', '/yinghepool/shipengcheng/Dataset/nnUNet/nnUNet_raw/Qwen3-4B')
 
         self.print_to_log_file(f"Qwen3 Trainer initialized:")
         self.print_to_log_file(f"  - LLM model path: {self.llm_model_path}")

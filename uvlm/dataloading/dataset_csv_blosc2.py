@@ -223,6 +223,22 @@ class nnUNetDatasetCSVBlosc2:
     def __len__(self):
         return len(self.dataset)
 
+    @property
+    def identifiers(self):
+        """Return list of sample identifiers (required by nnUNet DataLoader)"""
+        return list(self.dataset.keys())
+
+    @staticmethod
+    def unpack_dataset(folder: str, overwrite_existing: bool = False,
+                       num_processes: int = 8, verify: bool = True):
+        """No-op: CSV-based dataset doesn't need unpacking"""
+        pass
+
+    @staticmethod
+    def get_identifiers(folder: str):
+        """Get identifiers from folder (not used for CSV-based dataset)"""
+        return []
+
     def items(self):
         return self.dataset.items()
 
@@ -243,7 +259,7 @@ class nnUNetDatasetCSVBlosc2:
         - z-axis is uniformly processed to target_z_size: truncate if exceeding, pad if insufficient.
         - Ensures consistent vision token count per batch.
 
-        Returns: data (1, D, H, W), seg (1, D, H, W), properties
+        Returns: data (1, D, H, W), seg (1, D, H, W), seg_prev (None), properties
         """
         if key not in self.dataset:
             raise KeyError(f"Key {key} not found in dataset")
@@ -296,4 +312,5 @@ class nnUNetDatasetCSVBlosc2:
         if entry['properties']['class_locations'] is None:
             entry['properties']['class_locations'] = {}
 
-        return data, seg, entry['properties']
+        # Return 4 values: data, seg, seg_prev, properties (nnUNet-master format)
+        return data, seg, None, entry['properties']

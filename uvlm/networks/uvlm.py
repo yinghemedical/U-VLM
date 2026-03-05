@@ -807,7 +807,7 @@ class LLMReportGenerator(nn.Module):
 class UVLM(nn.Module):
     def __init__(self, in_channels: int, patch_kernel_sizes: List[Union[int, Tuple[int, int, int]]],
                  enable_report_gen: bool = True,
-                 tokenizer_path: str = "/path/to/tokenizer/",
+                 tokenizer_path: str = "/yinghepool/shipengcheng/Dataset/nnUNet/nnUNet_raw/Qwen3-4B",
                  llm_embed_dim: int = 512, report_max_length: int = 8192,
                  num_heads: int = 8, ffn_dim: int = 2048,
                  dropout: float = 0.0, use_weight_tying: bool = True, use_deepstack: bool = False,
