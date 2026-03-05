@@ -134,21 +134,7 @@ cd U-VLM
 pip install -e .
 ```
 
-### Step 5: Register U-VLM Trainers
-
-After installing U-VLM, register the trainers with nnU-Net so they can be discovered by `nnUNet_train`:
-
-```bash
-cd U-VLM
-python register_trainers.py
-```
-
-This will register the following trainers:
-- `nnUNetTrainer_UVLM` - U-VLM trainer with lightweight decoder (0.1B params)
-- `nnUNetTrainer_UVLM_Qwen3` - U-VLM trainer with Qwen3-4B decoder
-- `nnUNetTrainer_ResEncoderUNet` - Segmentation-only trainer
-
-### Step 6: Evaluation Tools (Optional)
+### Step 5: Evaluation Tools (Optional)
 
 For computing classification and report generation metrics:
 
