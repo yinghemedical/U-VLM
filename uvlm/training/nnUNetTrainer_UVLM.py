@@ -2760,13 +2760,14 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
         if (current_epoch + 1) % self.save_every == 0 and current_epoch != (self.num_epochs - 1):
             self.save_checkpoint(join(self.output_folder, 'checkpoint_latest'))
 
-        # Early stopping logic: stop when train_loss and val_loss gap > 0.15 (prevent overfitting)
-        # Only enable early stopping check when both train_loss and val_loss are below 0.95, avoid false triggers in early training
-        # And epoch count must be greater than num_train_samples*10/(250*batch_size)
+        # Early stopping strategy:
+        # 1. train_loss < 0.8
+        # 2. val_loss - train_loss > 0.15 (val higher than train by more than 0.15, indicating overfitting)
+        # 3. current_epoch >= min_epochs
         train_loss = self.logger.my_fantastic_logging['train_losses'][-1]
         val_loss = self.logger.my_fantastic_logging['val_losses'][-1]
-        loss_gap = train_loss - val_loss
-        early_stopping_threshold = 0.95  # Only check early stopping when both losses are below this threshold
+        loss_gap = val_loss - train_loss
+        early_stopping_threshold = 0.8  # Only check early stopping when train_loss < 0.8
 
         # Calculate minimum epoch requirement based on sample count (10x samples / (250 * batch_size))
         # This ensures the model sees enough samples before early stopping can trigger
@@ -2781,11 +2782,11 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
         else:
             min_epochs = 0  # If not set, no minimum epoch limit
 
-        if train_loss < early_stopping_threshold and val_loss < early_stopping_threshold:
-            if abs(loss_gap) > 0.15:  # Check gap first (core condition)
+        if train_loss < early_stopping_threshold:
+            if loss_gap > 0.15:  # val higher than train by more than 0.15 (overfitting)
                 if self.current_epoch >= min_epochs:
                     # Trigger early stopping
-                    self.print_to_log_file(f"Early stopping triggered! Epoch {self.current_epoch} >= min_epochs {min_epochs:.1f}, train_loss ({np.round(train_loss, decimals=4)}) - val_loss ({np.round(val_loss, decimals=4)}) = {np.round(loss_gap, decimals=4)}, gap > 0.15")
+                    self.print_to_log_file(f"Early stopping triggered! Epoch {self.current_epoch} >= min_epochs {min_epochs:.1f}, val_loss ({np.round(val_loss, decimals=4)}) - train_loss ({np.round(train_loss, decimals=4)}) = {np.round(loss_gap, decimals=4)}, gap > 0.15 (overfitting)")
                     # Save checkpoint_final.pth when early stopping (consistent with normal training end)
                     self.save_checkpoint(join(self.output_folder, 'checkpoint_final'))
                     # Delete checkpoint_latest.pth (consistent with on_train_end behavior)
@@ -2805,7 +2806,7 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
                     os._exit(0)  # Use os._exit() instead of exit() for more thorough termination, avoiding conflicts with subprocesses
                 else:
                     # Gap condition met but epoch not enough
-                    self.print_to_log_file(f"Early stopping condition met but epoch {self.current_epoch} < min_epochs {min_epochs:.1f}, continuing training...")
+                    self.print_to_log_file(f"Early stopping condition met (train_loss={np.round(train_loss, decimals=4)} < 0.8, gap={np.round(loss_gap, decimals=4)} > 0.15) but epoch {self.current_epoch} < min_epochs {min_epochs:.1f}, continuing training...")
 
         # Best model saving logic
         if self.mode == 'only_cls':
