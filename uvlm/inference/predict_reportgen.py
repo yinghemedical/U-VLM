@@ -169,8 +169,10 @@ class nnUNetPredictor:
 
         # ==================== Build network ====================
         num_input_channels = determine_num_input_channels(plans_manager, configuration_manager, dataset_json)
+
+        # Find trainer in U-VLM training directory
         trainer_class = recursive_find_python_class(
-            join(os.path.dirname(__file__), '..', 'training', 'nnUNetTrainer'),
+            join(os.path.dirname(__file__), '..', 'training'),
             trainer_name, 'nnunetv2.training.nnUNetTrainer'
         )
 
