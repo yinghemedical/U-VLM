@@ -59,7 +59,7 @@ This multi-layer injection extends U-Net's skip connections to vision-language m
 
 ### Results
 
-U-VLM achieves F1 of 0.414 and BLEU-mean of 0.349 on CT-RATE, surpassing BTB3D (F1: 0.258, BLEU-mean: 0.305), and outperforms both end-to-end methods and segmentation-based detection on AbdomenAtlas 3.0 (F1: 0.624 vs 0.518). U-VLM uses only a 0.1B decoder trained from scratch, while compared methods use 7B+ pre-trained models.
+U-VLM achieves F1 of 0.414 and BLEU-mean of 0.349 on [CT-RATE](https://huggingface.co/datasets/ibrahimhamamci/CT-RATE), surpassing BTB3D (F1: 0.258, BLEU-mean: 0.305), and outperforms both end-to-end methods and segmentation-based detection on [AbdomenAtlas 3.0](https://huggingface.co/datasets/AbdomenAtlas/AbdomenAtlas3.0Mini) (F1: 0.624 vs 0.518). U-VLM uses only a 0.1B decoder trained from scratch, while compared methods use 7B+ pre-trained models.
 
 | Dataset | F1 | BLEU-mean | Decoder |
 |---------|-------|-----------|---------|
