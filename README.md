@@ -399,10 +399,4 @@ U-VLM builds upon the robust [nnU-Net](https://github.com/MIC-DKFZ/nnUNet) frame
 
 ## Contact
 
-For questions, issues, or collaborations, please contact:
-
-📧 **Pengcheng Shi**: shipc1220@gmail.com
-📧 **Xinglin Zhang**: xinglinzh@gmail.com
-📧 **Yun Gu**: geron762@sjtu.edu.cn
-
-🐛 **Issues**: [GitHub Issue Tracker](https://github.com/yinghemedical/U-VLM/issues)
+If you have any questions or encounter any issues, please feel free to reach out via our [GitHub Issue Tracker](https://github.com/yinghemedical/U-VLM/issues).
