@@ -1,0 +1,29 @@
+{
+    "channel_names": {
+        "0": "CT"
+    },
+    "labels": {
+        "background": 0,
+        "Medical material": 1,
+        "Arterial wall calcification": 2,
+        "Cardiomegaly": 3,
+        "Pericardial effusion": 4,
+        "Coronary artery wall calcification": 5,
+        "Hiatal hernia": 6,
+        "Lymphadenopathy": 7,
+        "Emphysema": 8,
+        "Atelectasis": 9,
+        "Lung nodule": 10,
+        "Lung opacity": 11,
+        "Pulmonary fibrotic sequela": 12,
+        "Pleural effusion": 13,
+        "Mosaic attenuation pattern": 14,
+        "Peribronchial thickening": 15,
+        "Consolidation": 16,
+        "Bronchiectasis": 17,
+        "Interlobular septal thickening": 18
+    },
+    "numTraining": 20,
+    "file_ending": ".b2nd",
+    "description": "UVLM ChestClsReport Test (10 cases from Dataset140_CT-RATE)"
+}

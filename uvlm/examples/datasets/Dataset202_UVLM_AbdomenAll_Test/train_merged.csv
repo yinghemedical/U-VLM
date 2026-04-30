@@ -1,0 +1,21 @@
+case_id,series_id,report_structured,report_narrative,report_fusion_structured,report_fusion_narrative,report,spacing,sex,age,blosc2_path,processed_shape,Liver lesion,Kidney lesion,Pancreas lesion,Liver lesion_largest_diameter_mm,Liver lesion_tumor_category,Kidney lesion_largest_diameter_mm,Kidney lesion_tumor_category,Pancreas lesion_largest_diameter_mm,Pancreas lesion_tumor_category,source
+BDMAP_00000001,BDMAP_00000001,"CT Arterial Phase 
+
+FINDINGS: 
+Spleen: 
+Normal size (volume: 134.9 cc).
+Mean HU value: 124.6 +/- 35.2.
+
+Liver: 
+Normal size (volume: 1291.3 cc).
+Mean HU value: 111.4 +/- 17.3.
+
+Liver lesions:
+Liver lesion 1: 
+Location: hepatic segment 2.
+Size: 3.1 x 1.6 cm (image 174). Volume: 8.2 cc.
+Enhancement relative to liver: Hypoattenuating (HU value is 9.8+/-20.4).
+
+Liver lesion 2: 
+Location: hepatic segment 8.
+Size: 2.5 x 2.0 cm (image 178). Volume: 4.9 cc.

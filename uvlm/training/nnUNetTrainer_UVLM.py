@@ -133,7 +133,8 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
 
         # ==================== CSV Dataset Configuration ====================
         # All parameters are passed from plan's network_arch_init_kwargs, no hardcoded defaults
-        # Required parameters: csv_paths, series_id_column, case_id_column, cls_columns
+        # Required parameters: csv_paths, series_id_column, case_id_column
+        # Required for 'only_cls' and 'both' modes: cls_columns
         # Optional parameters: question_column, answer_column (for VQA/Report generation)
 
         # CSV file paths (required)
@@ -165,16 +166,19 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
             )
         self.print_to_log_file(f"Using case_id column: {self.case_id_column}")
 
-        # Classification column name list (required, for classification tasks and data balancing)
+        # Classification column name list (required for 'only_cls' and 'both' modes, optional for 'only_report' mode)
         self.cls_columns = self.configuration_manager.network_arch_init_kwargs.get('cls_columns', None)
-        if self.cls_columns is None:
+        if self.mode in ['only_cls', 'both'] and self.cls_columns is None:
             raise ValueError(
-                "cls_columns must be configured in plan's network_arch_init_kwargs. "
+                "cls_columns must be configured in plan's network_arch_init_kwargs for 'only_cls' and 'both' modes. "
                 "Example: 'cls_columns': ['cyst', 'edema', 'brain_hemorrhage', ...]"
             )
-        if isinstance(self.cls_columns, str):
-            self.cls_columns = [self.cls_columns]
-        self.print_to_log_file(f"Using cls_columns: {self.cls_columns} ({len(self.cls_columns)} classes)")
+        if self.cls_columns is not None:
+            if isinstance(self.cls_columns, str):
+                self.cls_columns = [self.cls_columns]
+            self.print_to_log_file(f"Using cls_columns: {self.cls_columns} ({len(self.cls_columns)} classes)")
+        else:
+            self.print_to_log_file(f"Using cls_columns: None (report-only mode)")
 
         # Question and Answer column names (for VQA/Report generation)
         self.question_column = self.configuration_manager.network_arch_init_kwargs.get('question_column', 'question')
@@ -355,17 +359,17 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
             else:
                 self.print_to_log_file(f"Non-DeepStack: Single stage with {self.layers_per_stage} layers")
 
-            # Component-specific learning rate multipliers
-            self.encoder_lr_multiplier = self.configuration_manager.network_arch_init_kwargs.get('encoder_lr_multiplier', 1.0)
-            self.patch_embed_lr_multiplier = self.configuration_manager.network_arch_init_kwargs.get('patch_embed_lr_multiplier', 1.0)
-            self.vision_proj_lr_multiplier = self.configuration_manager.network_arch_init_kwargs.get('vision_proj_lr_multiplier', 1.0)
-            self.llm_lr_multiplier = self.configuration_manager.network_arch_init_kwargs.get('llm_lr_multiplier', 1.0)
+        # Component-specific learning rate multipliers (apply to all modes)
+        self.encoder_lr_multiplier = self.configuration_manager.network_arch_init_kwargs.get('encoder_lr_multiplier', 1.0)
+        self.patch_embed_lr_multiplier = self.configuration_manager.network_arch_init_kwargs.get('patch_embed_lr_multiplier', 1.0)
+        self.vision_proj_lr_multiplier = self.configuration_manager.network_arch_init_kwargs.get('vision_proj_lr_multiplier', 1.0)
+        self.llm_lr_multiplier = self.configuration_manager.network_arch_init_kwargs.get('llm_lr_multiplier', 1.0)
 
-            self.print_to_log_file("Using component-specific learning rate multipliers:")
-            self.print_to_log_file(f"  Encoder LR multiplier: {self.encoder_lr_multiplier}")
-            self.print_to_log_file(f"  Patch Embed LR multiplier: {self.patch_embed_lr_multiplier}")
-            self.print_to_log_file(f"  Vision Proj LR multiplier: {self.vision_proj_lr_multiplier}")
-            self.print_to_log_file(f"  LLM LR multiplier: {self.llm_lr_multiplier}")
+        self.print_to_log_file("Using component-specific learning rate multipliers:")
+        self.print_to_log_file(f"  Encoder LR multiplier: {self.encoder_lr_multiplier}")
+        self.print_to_log_file(f"  Patch Embed LR multiplier: {self.patch_embed_lr_multiplier}")
+        self.print_to_log_file(f"  Vision Proj LR multiplier: {self.vision_proj_lr_multiplier}")
+        self.print_to_log_file(f"  LLM LR multiplier: {self.llm_lr_multiplier}")
 
         # Visual token configuration
         self.visual_token_length_source_stage = self.configuration_manager.network_arch_init_kwargs.get(

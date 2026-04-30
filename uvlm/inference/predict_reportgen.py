@@ -196,6 +196,16 @@ class nnUNetPredictor:
         # ==================== Load weights ====================
         checkpoint_weights = checkpoint['network_weights']
         model_state_dict = network.state_dict()
+
+        # Handle torch.compile prefix (_orig_mod.) if present
+        processed_checkpoint_weights = {}
+        for key, value in checkpoint_weights.items():
+            new_key = key
+            if key.startswith('_orig_mod.'):
+                new_key = key[len('_orig_mod.'):]
+            processed_checkpoint_weights[new_key] = value
+        checkpoint_weights = processed_checkpoint_weights
+
         # Filter mismatched parameters
         filtered_weights = {}
         skipped_keys = []

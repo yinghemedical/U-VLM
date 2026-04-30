@@ -1,0 +1,28 @@
+{
+    "channel_names": {
+        "0": "CT"
+    },
+    "labels": {
+        "background": 0,
+        "liver": 1,
+        "spleen": 2,
+        "kidney": 3,
+        "stomach": 4,
+        "pancreas": 5,
+        "aorta": 6,
+        "postcava": 7,
+        "bladder": 8,
+        "esophagus": 9,
+        "gall_bladder": 10,
+        "lung": 11,
+        "femur": 12
+    },
+    "cls_labels": [
+        "Liver lesion",
+        "Kidney lesion",
+        "Pancreas lesion"
+    ],
+    "numTraining": 10,
+    "file_ending": ".b2nd",
+    "description": "UVLM AbdomenAll Test (10 cases from Dataset145_AbdomenAtlas3.0Mini)"
+}

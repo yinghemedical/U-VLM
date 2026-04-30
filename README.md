@@ -24,6 +24,7 @@ We propose U-VLM, which enables hierarchical vision-language modeling in both tr
 
 ## Latest Updates
 
+- **Apr 30, 2026**: Full pipeline release — setup, preprocessing, training, inference, evaluation for all tasks
 - **Feb 28, 2026**: Initial core code implementation released
 
 ---
@@ -99,269 +100,167 @@ U-VLM trains a shared U-Net encoder through three progressive stages, then conne
 
 ## Setup
 
-### Step 1: Environment Creation
-
-```bash
-conda create -n uvlm python=3.10
-conda activate uvlm
-```
-
-### Step 2: PyTorch Installation
-
-Install PyTorch matching your CUDA version. Example for CUDA 12.4:
-
-```bash
-pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
-```
-
-For other configurations, refer to the [PyTorch installation guide](https://pytorch.org/get-started/previous-versions/).
-
-### Step 3: Install nnU-Net v2
-
-U-VLM extends the nnU-Net v2 framework:
-
-```bash
-git clone https://github.com/MIC-DKFZ/nnUNet.git
-cd nnUNet
-pip install -e .
-```
-
-### Step 4: Install U-VLM
+### One-Click Setup
 
 ```bash
 git clone https://github.com/yinghemedical/U-VLM.git
 cd U-VLM
-pip install -e .
+bash uvlm/scripts/setup_env.sh
 ```
 
-### Step 5: Evaluation Tools (Optional)
-
-For computing classification and report generation metrics:
+This script auto-detects your conda/nnUNet paths and creates a `uvlm` environment with all dependencies. Customize with environment variables:
 
 ```bash
-pip install scikit-learn
-pip install git+https://github.com/salaniz/pycocoevalcap.git
+ENV_NAME=my_uvlm NNUNET_DIR=/path/to/nnUNet bash uvlm/scripts/setup_env.sh
 ```
+
+### Manual Setup
+
+```bash
+conda create -n uvlm python=3.10
+conda activate uvlm
+
+# PyTorch (CUDA 12.4)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+
+# nnU-Net v2
+git clone https://github.com/MIC-DKFZ/nnUNet.git
+cd nnUNet && pip install -e . && cd ..
+
+# U-VLM
+cd U-VLM && pip install -e .
+```
+
+See `uvlm/scripts/setup_env.sh` for the complete dependency list.
 
 ---
 
 ## Quick Start
 
-### Data Preparation
-
-#### CT-RATE Dataset (Chest CT)
-
-Preprocess the CT-RATE dataset for training:
+Example scripts for each stage are in `uvlm/scripts/` — adapt paths and run directly:
 
 ```bash
-# Full pipeline: resize + reports + classification + merge
-python -m uvlm.preprocessing.preprocess_ct_rate_cls_report \
-    --config-path /path/to/ct_rate_config.json \
-    all --train-input-dir /path/to/train --val-input-dir /path/to/val \
-        --output-dir /path/to/output \
-        --reports-input-dir /path/to/reports \
-        --cls-input-dir /path/to/classification
-
-# Or run individual steps:
-# Step 1: Resize nii.gz to blosc2
-python -m uvlm.preprocessing.preprocess_ct_rate_cls_report \
-    --config-path /path/to/ct_rate_config.json \
-    resize --input-dir /path/to/nii_files --output-dir /path/to/output
-
-# Step 2: Process reports
-python -m uvlm.preprocessing.preprocess_ct_rate_cls_report \
-    --config-path /path/to/ct_rate_config.json \
-    reports --input-csv /path/to/reports.csv --output-csv /path/to/output.csv \
-            --blosc2-dir /path/to/imagesTr
+bash uvlm/scripts/run_preprocess.sh   # raw data → Blosc2 + CSV
+bash uvlm/scripts/run_train.sh        # progressive 3-stage training
+bash uvlm/scripts/run_inference.sh    # generate predictions
+bash uvlm/scripts/run_evaluate.sh     # compute metrics
 ```
 
-#### AbdomenAtlas 3.0 Dataset (Abdominal CT)
+Or use the CLI commands directly:
 
-Preprocess the AbdomenAtlas 3.0 dataset:
+### Preprocessing
 
-```bash
-# Full segmentation pipeline: merge masks + resize to blosc2
-python -m uvlm.preprocessing.preprocess_abdomen_seg \
-    --config-path /path/to/abdomen_atlas_config.json \
-    all --input-dir /path/to/AbdomenAtlas \
-        --raw-output-dir /path/to/nnUNet_raw \
-        --preprocessed-output-dir /path/to/nnUNet_preprocessed
-
-# Classification and report pipeline
-python -m uvlm.preprocessing.preprocess_abdomen_cls_report \
-    --config-path /path/to/abdomen_atlas_config.json \
-    all --mask-only-dir /path/to/mask_only \
-        --image-only-dir /path/to/image_only \
-        --meta-csv /path/to/metadata.csv \
-        --images-dir /path/to/preprocessed_images \
-        --split-dir /path/to/TrainTestIDS \
-        --output-dir /path/to/output
-```
-
-#### ReXGroundingCT Dataset (Chest Segmentation)
+Convert raw images to Blosc2 format and generate training CSVs. Config templates are in `uvlm/preprocessing/configs/`.
 
 ```bash
+# Chest segmentation (ReXGroundingCT)
 python -m uvlm.preprocessing.preprocess_rexgrounding_seg \
-    --config-path /path/to/rexgrounding_ct_config.json \
-    all --raw-input-dir /path/to/nnUNet_raw \
-        --output-dir /path/to/nnUNet_preprocessed
+    --config-path uvlm/preprocessing/configs/rexgrounding_ct_config.json \
+    all --raw-input-dir /path/to/raw --output-dir /path/to/preprocessed
+
+# Chest classification + report (CT-RATE)
+python -m uvlm.preprocessing.preprocess_ct_rate_cls_report \
+    --config-path uvlm/preprocessing/configs/ct_rate_config.json \
+    all --train-input-dir /path/to/train --val-input-dir /path/to/val \
+        --output-dir /path/to/preprocessed
+
+# Abdomen segmentation + classification + report (AbdomenAtlas 3.0)
+python -m uvlm.preprocessing.preprocess_abdomen_seg \
+    --config-path uvlm/preprocessing/configs/abdomen_atlas_config.json \
+    all --input-dir /path/to/data --output-dir /path/to/preprocessed
+python -m uvlm.preprocessing.preprocess_abdomen_cls_report \
+    --config-path uvlm/preprocessing/configs/abdomen_atlas_config.json \
+    all --images-dir /path/to/images --output-dir /path/to/preprocessed
 ```
 
-**Output**: CSV files containing `blosc2_path`, disease labels, and radiology reports.
+See `uvlm/examples/datasets/` for 20-case example CSVs and dataset.json files for each dataset (Dataset200 — Chest Segmentation, Dataset201 — Chest Classification/Report, Dataset202 — Abdomen).
 
-#### Storage Format
+### Training
 
-U-VLM employs **Blosc2 compression** (`.b2nd` format) for efficient storage and loading:
-
-```python
-import blosc2
-import numpy as np
-
-# Compress and save 3D volume
-volume = np.random.randn(192, 256, 256).astype(np.float32)
-blosc2.save_array(volume, "scan.b2nd", mode='w')
-
-# Load compressed volume
-volume = np.asarray(blosc2.open("scan.b2nd"))
-```
-
-**CSV Structure**:
-```csv
-series_id,case_id,blosc2_path,disease_1,disease_2,...,report
-scan_001_1,case_001,/data/scan.b2nd,0,1,...,"Findings: ..."
-```
-
-### Training Workflow
-
-Follow these three sequential stages for progressive training:
-
-#### Stage 1: Segmentation Pretraining
-
-Train the complete U-Net architecture for dense spatial structure learning:
+Progressive three-stage training. First, generate a plan from the template for your dataset:
 
 ```bash
-nnUNetv2_train DATASET_ID 3d_fullres FOLD -tr nnUNetTrainer_ResEncoderUNet
+python uvlm/scripts/generate_plans.py \
+    --template uvlm/configs/plans/UVLM_ResEncUNetLPlans_chest_seg_basic.json \
+    --output /path/to/nnUNet_preprocessed/DatasetXXX/UVLM_ResEncUNetLPlans.json \
+    --var PREPROCESSED_DIR=/path/to/nnUNet_preprocessed \
+    --var DATASET_NAME=DatasetXXX \
+    --var CSV_FILE=train_merged.csv
 ```
 
-This stage learns fine-grained anatomical structures through per-voxel segmentation supervision.
-
-#### Stage 2: Classification Pretraining
-
-Replace decoder with classification head for disease pattern recognition:
+Then train progressively (each stage loads the previous checkpoint):
 
 ```bash
-nnUNetv2_train DATASET_ID 3d_fullres FOLD -tr nnUNetTrainer_UVLM \
-    --mode only_cls
+# Stage 1: Segmentation
+uvlm_train DatasetXXX 3d_fullres 0 \
+    -tr nnUNetTrainer_ResEncoderUNet \
+    -p UVLM_ResEncUNetLPlans_chest_seg_basic
+
+# Stage 2: Classification (load seg checkpoint)
+uvlm_train DatasetXXX 3d_fullres 0 \
+    -tr nnUNetTrainer_UVLM \
+    -p UVLM_ResEncUNetLPlans_chest_cls \
+    --pretrained_encoder_checkpoint_path /path/to/seg_checkpoint.pth
+
+# Stage 3: Report generation (load cls checkpoint)
+uvlm_train DatasetXXX 3d_fullres 0 \
+    -tr nnUNetTrainer_UVLM \
+    -p UVLM_ResEncUNetLPlans_chest_report \
+    --pretrained_encoder_checkpoint_path /path/to/cls_checkpoint.pth
 ```
 
-The encoder can be frozen or fine-tuned while the classification head learns multi-label disease predictions.
+Available plan templates in `uvlm/configs/plans/`:
 
-#### Stage 3: Report Generation Training
+| Template | Stage | Anatomy |
+|----------|-------|---------|
+| `*_chest_seg_basic.json` | Segmentation | Chest |
+| `*_chest_cls.json` | Classification | Chest |
+| `*_chest_report.json` | Report Gen | Chest |
+| `*_abdomen_seg_basic.json` | Segmentation | Abdomen |
+| `*_abdomen_cls.json` | Classification | Abdomen |
+| `*_abdomen_report.json` | Report Gen | Abdomen |
 
-Attach language decoder and train end-to-end for report generation:
+### Inference
 
 ```bash
-# Default: 0.1B lightweight decoder (recommended)
-nnUNetv2_train DATASET_ID 3d_fullres FOLD -tr nnUNetTrainer_UVLM \
-    --mode only_report
-
-# Alternative: Qwen3-4B with LoRA fine-tuning (default)
-nnUNetv2_train DATASET_ID 3d_fullres FOLD -tr nnUNetTrainer_UVLM_Qwen3
-
-# Alternative: Qwen3-4B with full parameter fine-tuning
-# Set use_lora=False in the plan's network_arch_init_kwargs
-nnUNetv2_train DATASET_ID 3d_fullres FOLD -tr nnUNetTrainer_UVLM_Qwen3
-```
-
-**Qwen3 Training Modes:**
-- **LoRA fine-tuning** (`use_lora=True`, default): Only trains LoRA adapters, memory efficient
-- **Full fine-tuning** (`use_lora=False`): Trains all parameters, requires more GPU memory
-
-### Running Inference
-
-#### Disease Classification
-
-Python API for multi-label disease classification:
-
-```python
-import torch
-from uvlm.inference.predict_cls import nnUNetPredictor
-
-# Setup predictor
-predictor = nnUNetPredictor(device=torch.device('cuda'))
-predictor.initialize_from_trained_model_folder(model_dir)
-
-# Run classification
-disease_probabilities = predictor.predict_single_npy(input_image)
-```
-
-#### Report Generation (Distributed)
-
-Multi-GPU inference for efficient report generation:
-
-```bash
-python -m uvlm.inference.inference_reportgen \
+# Segmentation
+uvlm_inference seg \
     --csv-path /path/to/test.csv \
-    --checkpoint-path /path/to/checkpoint_best.pth \
-    --gpu-config "0:2,1:2"  # 2 workers each on GPU 0 and GPU 1
+    --model-dir /path/to/model \
+    --output-dir /path/to/output
+
+# Classification
+uvlm_inference cls \
+    --csv-path /path/to/test.csv \
+    --model-dir /path/to/model \
+    --output-dir /path/to/output \
+    --gpu-config "0:1"
+
+# Report generation
+uvlm_inference report \
+    --csv-path /path/to/test.csv \
+    --model-dir /path/to/model \
+    --output-dir /path/to/output \
+    --gpu-config "0:1"
 ```
 
-### Performance Evaluation
-
-#### Classification Evaluation
-
-Compute macro-averaged precision, recall, and F1 scores:
+### Evaluation
 
 ```bash
-python -m uvlm.evaluation.evaluate \
-    --task cls \
-    --gt-csv ground_truth.csv \
-    --pred-csv predictions.csv \
-    --output-dir results/
+# Segmentation (Dice)
+uvlm_evaluate seg \
+    --gt-csv gt.csv --predictions predictions.json --output-dir results/
+
+# Classification (F1 / Recall / Precision per class)
+uvlm_evaluate cls \
+    --gt-csv gt.csv --pred-csv predictions.csv --output-dir results/
+
+# Report generation (BLEU)
+uvlm_evaluate report \
+    --gt-csv gt.csv --pred-csv predictions.csv --output-dir results/
 ```
 
-**Reported Metrics**: Macro Precision, Macro Recall, Macro F1
-
-#### Report Generation Evaluation
-
-```bash
-python -m uvlm.evaluation.evaluate \
-    --task report \
-    --gt-csv ground_truth.csv \
-    --pred-csv predictions.csv \
-    --output-dir results/
-```
-
-**Reported Metrics**: BLEU-1, BLEU-2, BLEU-3, BLEU-4, and additional NLP metrics
-
----
-
-## Hyperparameter Configuration
-
-Example configuration for `network_arch_init_kwargs`:
-
-```python
-{
-    "mode": "both",  # Options: "only_cls", "only_report", "both"
-    "csv_paths": ["/path/to/training_data.csv"],
-    "cls_columns": ["Liver lesion", "Kidney lesion", "Pancreas lesion"],  # Disease labels
-    "report_column": "report",
-    "llm_embed_dim": 512,       # Language model hidden dimension
-    "num_heads": 8,              # Number of attention heads
-    "initial_lr": 2e-5,          # Initial learning rate
-}
-```
-
----
-
-## Development Roadmap
-
-- [x] **Paper Publication**: arXiv preprint release
-- [x] **Core Implementation**: Base code and architecture released
-- [ ] **Data Processing Scripts**: Complete preprocessing pipelines for CT-RATE, AbdomenAtlas 3.0, and ReXGroundingCT
-- [ ] **Training Scripts**: Full multi-stage training codebase
-- [ ] **Inference Scripts**: Comprehensive inference and evaluation code
-- [ ] **Custom Fine-tuning**: Documentation and scripts for adaptation to new datasets
+Output: `metrics_seg.json`, `metrics_cls.json`, or `metrics_nlg.json`.
 
 ---
 

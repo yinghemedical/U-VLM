@@ -1,270 +1,275 @@
 """
 Evaluation Script for U-VLM
 
-Evaluates classification and report generation results.
-
 Usage:
-    # Evaluate classification
+    # Segmentation evaluation
     python -m uvlm.evaluation.evaluate \
-        --task cls \
-        --gt-csv /path/to/ground_truth.csv \
-        --pred-csv /path/to/predictions.csv \
+        --task seg \
+        --predictions /path/to/predictions.json \
+        --gt-csv /path/to/gt.csv \
+        --id-col series_id \
         --output-dir /path/to/output
 
-    # Evaluate report generation
+    # Classification evaluation (GT vs Pred comparison)
+    python -m uvlm.evaluation.evaluate \
+        --task cls \
+        --gt-csv /path/to/gt.csv \
+        --pred-csv /path/to/pred.csv \
+        --id-col series_id \
+        --output-dir /path/to/output
+
+    # Report generation evaluation (GT vs Pred comparison)
     python -m uvlm.evaluation.evaluate \
         --task report \
-        --gt-csv /path/to/ground_truth.csv \
-        --pred-csv /path/to/predictions.csv \
+        --gt-csv /path/to/gt.csv \
+        --pred-csv /path/to/pred.csv \
+        --id-col series_id \
         --output-dir /path/to/output
 """
 
-import os
 import argparse
+import blosc2
 import json
+import os
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+import SimpleITK as sitk
 
 from uvlm.evaluation.metrics.classification import calc_cls_metrics
 from uvlm.evaluation.metrics.nlg import calc_nlg_metrics
 
 
-# Default classification columns for CT-RATE (18 classes)
-CT_RATE_CLS_COLUMNS = [
-    'Medical material',
-    'Arterial wall calcification',
-    'Cardiomegaly',
-    'Pericardial effusion',
-    'Coronary artery wall calcification',
-    'Hiatal hernia',
-    'Lymphadenopathy',
-    'Emphysema',
-    'Atelectasis',
-    'Lung nodule',
-    'Lung opacity',
-    'Pulmonary fibrotic sequela',
-    'Pleural effusion',
-    'Mosaic attenuation pattern',
-    'Peribronchial thickening',
-    'Consolidation',
-    'Bronchiectasis',
-    'Interlobular septal thickening'
+def read_blosc2(file_path: str) -> np.ndarray:
+    """Load blosc2 format file."""
+    b2_array = blosc2.open(file_path, mmap_mode='r')
+    return b2_array[:]
+
+
+# Default classification columns
+CT_RATE_COLS = [
+    'Medical material', 'Arterial wall calcification', 'Cardiomegaly',
+    'Pericardial effusion', 'Coronary artery wall calcification', 'Hiatal hernia',
+    'Lymphadenopathy', 'Emphysema', 'Atelectasis', 'Lung nodule',
+    'Lung opacity', 'Pulmonary fibrotic sequela', 'Pleural effusion',
+    'Mosaic attenuation pattern', 'Peribronchial thickening',
+    'Consolidation', 'Bronchiectasis', 'Interlobular septal thickening'
 ]
 
-# Default classification columns for AbdomenAtlas (3 classes)
-ABDOMEN_CLS_COLUMNS = [
-    'Liver lesion',
-    'Kidney lesion',
-    'Pancreas lesion'
-]
+ABDOMEN_COLS = ['Liver lesion', 'Kidney lesion', 'Pancreas lesion']
 
 
-def evaluate_classification(
-    gt_csv: str,
-    pred_csv: str,
-    output_dir: str,
-    id_col: str = 'series_id',
-    cls_columns: list = None,
-    threshold: float = 0.5
-):
-    """
-    Evaluate classification results
+def detect_cls_columns(df: pd.DataFrame) -> list:
+    """Auto-detect classification columns from DataFrame."""
+    if all(col in df.columns for col in CT_RATE_COLS[:5]):
+        return CT_RATE_COLS
+    if all(col in df.columns for col in ABDOMEN_COLS[:2]):
+        return ABDOMEN_COLS
+    return None
 
-    Args:
-        gt_csv: Ground truth CSV path
-        pred_csv: Prediction CSV path
-        output_dir: Output directory
-        id_col: ID column name
-        cls_columns: Classification column names
-        threshold: Binarization threshold
-    """
-    print(f"\n{'='*60}")
-    print("Classification Evaluation")
-    print(f"{'='*60}")
 
-    # Load data
+def compute_dice(pred: np.ndarray, gt: np.ndarray, num_classes: int) -> dict:
+    """Calculate Dice coefficient for each class."""
+    dice_scores = {}
+    for c in range(1, num_classes):
+        pred_c = (pred == c).astype(np.float32)
+        gt_c = (gt == c).astype(np.float32)
+        intersection = np.sum(pred_c * gt_c)
+        union = np.sum(pred_c) + np.sum(gt_c)
+        dice_scores[c] = float(2.0 * intersection / union) if union > 0 else float('nan')
+    return dice_scores
+
+
+def evaluate_seg(predictions_json: str, gt_csv: str, output_dir: str, id_col: str = 'series_id'):
+    """Evaluate segmentation - compute Dice from predictions and GT."""
+    with open(predictions_json) as f:
+        data = json.load(f)
+
+    pred_cases = data['per_case_results']
+    print(f"Segmentation: {len(pred_cases)} predictions")
+
+    # Load GT from CSV
+    gt_df = pd.read_csv(gt_csv)
+    # Find seg column
+    seg_col = None
+    for col in ['seg_blosc2_path', 'seg_path', 'label_path']:
+        if col in gt_df.columns:
+            seg_col = col
+            break
+    if seg_col is None:
+        raise ValueError(f"No segmentation path column found in GT CSV. Available: {list(gt_df.columns)}")
+
+    print(f"GT column: {seg_col}")
+
+    # Build GT lookup
+    gt_lookup = {}
+    for _, row in gt_df.iterrows():
+        identifier = row[id_col]
+        seg_path = row.get(seg_col)
+        if pd.notna(seg_path):
+            gt_lookup[identifier] = seg_path
+
+    # Compute Dice for each case
+    all_dice_scores = {}
+    for case in pred_cases:
+        identifier = case['identifier']
+        pred_path = case['pred_path']
+
+        if identifier not in gt_lookup:
+            continue
+
+        gt_path = gt_lookup[identifier]
+        if not os.path.exists(gt_path) or not os.path.exists(pred_path):
+            continue
+
+        # Load images - predictions as nii.gz (D,H,W), GT as blosc2 (D,H,W)
+        pred_arr = sitk.GetArrayFromImage(sitk.ReadImage(pred_path))
+        gt_arr = read_blosc2(gt_path)
+
+        # Ensure same shape by transposing if needed
+        if pred_arr.shape != gt_arr.shape:
+            gt_arr = gt_arr.T  # Transpose to match
+
+        # Compute Dice (assume max 48 classes)
+        num_classes = 48
+        dice_scores = compute_dice(pred_arr, gt_arr, num_classes)
+        all_dice_scores[identifier] = dice_scores
+
+    if not all_dice_scores:
+        print("No valid case pairs found for evaluation")
+        return
+
+    # Compute per-class and mean Dice
+    all_classes = set()
+    for scores in all_dice_scores.values():
+        all_classes.update(scores.keys())
+
+    per_class_dice = {}
+    for c in sorted(all_classes):
+        class_dices = [scores[c] for scores in all_dice_scores.values()
+                       if c in scores and not np.isnan(scores[c])]
+        if class_dices:
+            per_class_dice[c] = np.mean(class_dices)
+
+    mean_dice = np.mean(list(per_class_dice.values())) if per_class_dice else 0.0
+
+    result = {
+        "task": "segmentation",
+        "cases": len(all_dice_scores),
+        "mean_dice": float(mean_dice),
+        "per_class_dice": per_class_dice
+    }
+
+    print(f"Mean Dice: {mean_dice:.4f}")
+
+    os.makedirs(output_dir, exist_ok=True)
+    out_path = os.path.join(output_dir, "metrics_seg.json")
+    with open(out_path, 'w') as f:
+        json.dump(result, f, indent=2)
+    print(f"Saved: {out_path}")
+    return result
+
+
+def evaluate_cls(gt_csv: str, pred_csv: str, output_dir: str, id_col: str, cls_columns: list, threshold: float):
+    """Evaluate classification - GT vs Pred comparison with per-class F1."""
     gt_df = pd.read_csv(gt_csv)
     pred_df = pd.read_csv(pred_csv)
 
-    print(f"Ground truth samples: {len(gt_df)}")
-    print(f"Prediction samples: {len(pred_df)}")
+    print(f"Classification: GT={len(gt_df)}, Pred={len(pred_df)}")
 
-    # Auto-detect classification columns if not provided
     if cls_columns is None:
-        # Try CT-RATE columns first
-        if all(col in gt_df.columns for col in CT_RATE_CLS_COLUMNS[:5]):
-            cls_columns = CT_RATE_CLS_COLUMNS
-            print(f"Auto-detected CT-RATE classification columns")
-        # Try AbdomenAtlas columns
-        elif all(col in gt_df.columns for col in ABDOMEN_CLS_COLUMNS[:5]):
-            cls_columns = ABDOMEN_CLS_COLUMNS
-            print(f"Auto-detected AbdomenAtlas classification columns")
-        else:
-            raise ValueError(
-                "Could not auto-detect classification columns. "
-                "Please specify --cls-columns"
-            )
+        cls_columns = detect_cls_columns(gt_df)
+    if cls_columns is None:
+        raise ValueError("Cannot auto-detect cls_columns. Please specify --cls-columns")
 
-    print(f"Classification columns: {len(cls_columns)}")
+    print(f"Classes ({len(cls_columns)})")
 
-    # Calculate metrics
+    # Handle duplicate series_ids in GT by keeping only first occurrence
+    gt_df_dedup = gt_df.drop_duplicates(subset=[id_col], keep='first')
+
+    # Merge GT and Pred on id_col
+    merged = pred_df.merge(gt_df_dedup[[id_col] + cls_columns], on=id_col, how='left', suffixes=('_pred', '_gt'))
+
+    # Prepare GT and Pred DataFrames
+    gt_for_eval = merged[[id_col] + [f"{c}_gt" for c in cls_columns]].copy()
+    gt_for_eval = gt_for_eval.rename(columns={f"{c}_gt": c for c in cls_columns})
+
+    pred_for_eval = merged[[id_col] + [f"{c}_pred" for c in cls_columns]].copy()
+    pred_for_eval = pred_for_eval.rename(columns={f"{c}_pred": c for c in cls_columns})
+
+    print(f"After merge: GT={len(gt_for_eval)}, Pred={len(pred_for_eval)}")
+
+    metrics = calc_cls_metrics(gt_for_eval, pred_for_eval, id_col, cls_columns, threshold)
+
     os.makedirs(output_dir, exist_ok=True)
+    out_path = os.path.join(output_dir, "metrics_cls.json")
+    with open(out_path, 'w') as f:
+        json.dump(metrics, f, indent=2)
+    print(f"Saved: {out_path}")
 
-    print("\nCalculating classification metrics...")
-    cls_metrics = calc_cls_metrics(
-        gt_df, pred_df, id_col, cls_columns, threshold
-    )
+    print(f"\nPer-class F1:")
+    for p in metrics['per_pathology']:
+        print(f"  {p['name']}: P={p['precision']:.3f} R={p['recall']:.3f} F1={p['f1']:.3f}")
 
-    # Save metrics
-    metrics_path = os.path.join(output_dir, 'metrics_cls.json')
-    with open(metrics_path, 'w') as f:
-        json.dump(cls_metrics, f, indent=2)
-    print(f"Saved: {metrics_path}")
-
-    # Print summary
-    print(f"\n{'='*60}")
-    print("Classification Results")
-    print(f"{'='*60}")
-    print(f"Samples: {cls_metrics['num_samples']}")
-    print(f"Classes: {cls_metrics['num_classes']}")
-    print(f"Threshold: {cls_metrics['threshold']}")
-    print(f"\nMacro Metrics:")
-    print(f"  Precision: {cls_metrics['macro']['precision']:.4f}")
-    print(f"  Recall:    {cls_metrics['macro']['recall']:.4f}")
-    print(f"  F1:        {cls_metrics['macro']['f1']:.4f}")
-    print(f"{'='*60}\n")
+    print(f"\nMacro: P={metrics['macro']['precision']:.3f} R={metrics['macro']['recall']:.3f} F1={metrics['macro']['f1']:.3f}")
+    return metrics
 
 
-def evaluate_report_generation(
-    gt_csv: str,
-    pred_csv: str,
-    output_dir: str,
-    id_col: str = 'series_id',
-    gt_report_col: str = 'report',
-    pred_report_col: str = 'generated_report'
-):
-    """
-    Evaluate report generation results
-
-    Args:
-        gt_csv: Ground truth CSV path
-        pred_csv: Prediction CSV path
-        output_dir: Output directory
-        id_col: ID column name
-        gt_report_col: Ground truth report column name
-        pred_report_col: Prediction report column name
-    """
-    print(f"\n{'='*60}")
-    print("Report Generation Evaluation")
-    print(f"{'='*60}")
-
-    # Load data
+def evaluate_report(gt_csv: str, pred_csv: str, output_dir: str, id_col: str,
+                   gt_col: str = 'report', pred_col: str = 'generated_report'):
+    """Evaluate report generation - NLG metrics."""
     gt_df = pd.read_csv(gt_csv)
     pred_df = pd.read_csv(pred_csv)
 
-    print(f"Ground truth samples: {len(gt_df)}")
-    print(f"Prediction samples: {len(pred_df)}")
+    print(f"Report Generation: GT={len(gt_df)}, Pred={len(pred_df)}")
 
-    # Calculate NLG metrics
     os.makedirs(output_dir, exist_ok=True)
 
-    print("\nCalculating NLG metrics...")
     try:
-        nlg_metrics = calc_nlg_metrics(
-            gt_df, pred_df, id_col, gt_report_col, pred_report_col
-        )
+        metrics = calc_nlg_metrics(gt_df, pred_df, id_col, gt_col, pred_col)
+        out_path = os.path.join(output_dir, "metrics_nlg.json")
+        with open(out_path, 'w') as f:
+            json.dump(metrics, f, indent=2)
+        print(f"Saved: {out_path}")
 
-        # Save metrics
-        metrics_path = os.path.join(output_dir, 'metrics_nlg.json')
-        with open(metrics_path, 'w') as f:
-            json.dump(nlg_metrics, f, indent=2)
-        print(f"Saved: {metrics_path}")
-
-        # Print summary
-        print(f"\n{'='*60}")
-        print("Report Generation Results")
-        print(f"{'='*60}")
-        print(f"Samples: {nlg_metrics['num_samples']}")
-        print(f"\nNLG Metrics:")
-        print(f"  BLEU-1:    {nlg_metrics['BLEU_1']:.4f}")
-        print(f"  BLEU-2:    {nlg_metrics['BLEU_2']:.4f}")
-        print(f"  BLEU-3:    {nlg_metrics['BLEU_3']:.4f}")
-        print(f"  BLEU-4:    {nlg_metrics['BLEU_4']:.4f}")
-        print(f"  BLEU-mean: {nlg_metrics['BLEU_mean']:.4f}")
-        print(f"  ROUGE-L:   {nlg_metrics['ROUGE_L']:.4f}")
-        print(f"  CIDEr:     {nlg_metrics['CIDEr']:.4f}")
-        if nlg_metrics.get('METEOR') is not None:
-            print(f"  METEOR:    {nlg_metrics['METEOR']:.4f}")
-        print(f"{'='*60}\n")
-
+        print(f"\nNLG Metrics: BLEU-1={metrics['BLEU_1']:.3f} BLEU-4={metrics['BLEU_4']:.3f} BLEU-mean={metrics['BLEU_mean']:.3f}")
+        return metrics
     except ImportError as e:
-        print(f"\nError: {e}")
-        print("Please install pycocoevalcap:")
-        print("  pip install git+https://github.com/salaniz/pycocoevalcap.git")
+        print(f"Error: {e}")
+        print("Install: pip install git+https://github.com/salaniz/pycocoevalcap.git")
+        return None
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Evaluate U-VLM classification and report generation results'
-    )
-
-    parser.add_argument('--task', type=str, required=True,
-                        choices=['cls', 'report', 'both'],
+    parser = argparse.ArgumentParser(description='Evaluate U-VLM inference results')
+    parser.add_argument('--task', required=True, choices=['seg', 'cls', 'report'],
                         help='Evaluation task')
-    parser.add_argument('--gt-csv', type=str, required=True,
-                        help='Ground truth CSV file')
-    parser.add_argument('--pred-csv', type=str, required=True,
-                        help='Prediction CSV file')
-    parser.add_argument('--output-dir', type=str, required=True,
-                        help='Output directory')
-
-    # Common parameters
-    parser.add_argument('--id-col', type=str, default='series_id',
-                        help='ID column name')
-
-    # Classification parameters
-    parser.add_argument('--cls-columns', type=str, nargs='+', default=None,
-                        help='Classification column names')
-    parser.add_argument('--threshold', type=float, default=0.5,
-                        help='Classification threshold')
-
-    # Report generation parameters
-    parser.add_argument('--gt-report-col', type=str, default='report',
-                        help='Ground truth report column name')
-    parser.add_argument('--pred-report-col', type=str, default='generated_report',
-                        help='Prediction report column name')
-
+    parser.add_argument('--predictions', help='Segmentation predictions.json path')
+    parser.add_argument('--gt-csv', help='Ground truth CSV path')
+    parser.add_argument('--pred-csv', help='Prediction CSV path')
+    parser.add_argument('--id-col', default='series_id', help='ID column name')
+    parser.add_argument('--cls-columns', nargs='+', help='Classification column names')
+    parser.add_argument('--threshold', type=float, default=0.5, help='Binarization threshold')
+    parser.add_argument('--gt-report-col', default='report', help='GT report column')
+    parser.add_argument('--pred-report-col', default='generated_report', help='Pred report column')
+    parser.add_argument('--output-dir', required=True, help='Output directory')
     args = parser.parse_args()
 
-    # Validate inputs
-    if not Path(args.gt_csv).exists():
-        raise FileNotFoundError(f"Ground truth CSV not found: {args.gt_csv}")
-    if not Path(args.pred_csv).exists():
-        raise FileNotFoundError(f"Prediction CSV not found: {args.pred_csv}")
+    if args.task == 'seg':
+        if not args.predictions or not args.gt_csv:
+            raise ValueError("--predictions and --gt-csv required for seg task")
+        evaluate_seg(args.predictions, args.gt_csv, args.output_dir, args.id_col)
+    elif args.task == 'cls':
+        if not args.gt_csv or not args.pred_csv:
+            raise ValueError("--gt-csv and --pred-csv required for cls task")
+        evaluate_cls(args.gt_csv, args.pred_csv, args.output_dir, args.id_col, args.cls_columns, args.threshold)
+    elif args.task == 'report':
+        if not args.gt_csv or not args.pred_csv:
+            raise ValueError("--gt-csv and --pred-csv required for report task")
+        evaluate_report(args.gt_csv, args.pred_csv, args.output_dir, args.id_col, args.gt_report_col, args.pred_report_col)
 
-    # Run evaluation
-    if args.task in ['cls', 'both']:
-        evaluate_classification(
-            args.gt_csv,
-            args.pred_csv,
-            args.output_dir,
-            args.id_col,
-            args.cls_columns,
-            args.threshold
-        )
-
-    if args.task in ['report', 'both']:
-        evaluate_report_generation(
-            args.gt_csv,
-            args.pred_csv,
-            args.output_dir,
-            args.id_col,
-            args.gt_report_col,
-            args.pred_report_col
-        )
-
-    print("Evaluation completed!")
+    print("Done!")
 
 
 if __name__ == '__main__':

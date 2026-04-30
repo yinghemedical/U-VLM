@@ -1,0 +1,99 @@
+{
+    "dataset_name": "Dataset140_CT-RATE",
+    "dataset_id": "Dataset140_CT-RATE",
+    "description": "CT-RATE Chest Classification/Report Dataset",
+    "body_region": "chest",
+
+    "image": {
+        "patch_size": [192, 256, 256],
+        "spacing": [1.5, 1.0, 1.0],
+        "orientation": "LPS"
+    },
+
+    "processing_params": {
+        "target_size": [192, 256, 256],
+        "target_orientation": "LPS",
+        "aniso_threshold": 3,
+        "output_format": "blosc2"
+    },
+
+    "paths": {
+        "preprocessed": "/path/to/nnUNet_preprocessed/Dataset140_CT-RATE",
+        "images": "{preprocessed}/imagesTr",
+        "image_filename_pattern": "{case_id}.b2nd",
+        "train_csv": "{preprocessed}/train_merged.csv",
+        "validation_csv": "{preprocessed}/val_merged.csv",
+        "val_csv": "{preprocessed}/val_merged.csv",
+        "val_seg_csv": "{preprocessed}/val_merged.csv"
+    },
+
+    "splits": {
+        "train": {
+            "input_subdir": "train_fixed",
+            "reports_csv": "train_reports.csv",
+            "labels_csv": "train_predicted_labels.csv"
+        },
+        "val": {
+            "input_subdir": "valid_fixed",
+            "reports_csv": "validation_reports.csv",
+            "labels_csv": "valid_predicted_labels.csv"
+        }
+    },
+
+    "reports": {
+        "input_dir": "radiology_text_reports",
+        "output_dir": "radiology_text_reports_processed",
+        "columns": {
+            "volume_name": "VolumeName",
+            "findings": "Findings_EN",
+            "impressions": "Impressions_EN"
+        },
+        "report_format": "Findings: {findings} Impressions: {impressions}"
+    },
+
+    "classification": {
+        "input_dir": "multi_abnormality_labels",
+        "output_dir": "classification_processed",
+        "columns": [
+            "Medical material",
+            "Arterial wall calcification",
+            "Cardiomegaly",
+            "Pericardial effusion",
+            "Coronary artery wall calcification",
+            "Hiatal hernia",
+            "Lymphadenopathy",
+            "Emphysema",
+            "Atelectasis",
+            "Lung nodule",
+            "Lung opacity",
+            "Pulmonary fibrotic sequela",
+            "Pleural effusion",
+            "Mosaic attenuation pattern",
+            "Peribronchial thickening",
+            "Consolidation",
+            "Bronchiectasis",
+            "Interlobular septal thickening"
+        ],
+        "num_classes": 18,
+        "multi_label": true
+    },
+
+    "split_method": {
+        "method": "prefix",
+        "filename_column": "series_id",
+        "train_prefix": "train_",
+        "val_prefix": "valid_"
+    },
+
+    "tasks": {
+        "segmentation": null,
+        "segmentation_source": "rexgrounding_ct",
+        "classification": {
+            "num_classes": 18,
+            "multi_label": true
+        },
+        "report": {
+            "format": "Findings: {findings} Impressions: {impressions}"
+        }
+    }
+}

@@ -28,6 +28,7 @@ from tqdm import tqdm
 from batchgenerators.utilities.file_and_folder_operations import maybe_mkdir_p
 
 from nnunetv2.inference.predict_from_raw_data import nnUNetPredictor
+from uvlm.inference.inference_utils import load_val_case_ids, filter_df_by_val_cases
 
 
 # ==================== Data Loading ====================
@@ -114,42 +115,6 @@ def save_nifti(data: np.ndarray, output_path: str, spacing: Tuple[float, float, 
     sitk.WriteImage(sitk_image, output_path)
 
 
-# ==================== Metric Calculation ====================
-
-def compute_dice(pred: np.ndarray, gt: np.ndarray, num_classes: int) -> Dict[int, float]:
-    """Calculate Dice coefficient for each class"""
-    dice_scores = {}
-    for c in range(1, num_classes):
-        pred_c = (pred == c).astype(np.float32)
-        gt_c = (gt == c).astype(np.float32)
-        intersection = np.sum(pred_c * gt_c)
-        union = np.sum(pred_c) + np.sum(gt_c)
-        dice_scores[c] = 2.0 * intersection / union if union > 0 else np.nan
-    return dice_scores
-
-
-def compute_summary_metrics(all_dice_scores: Dict) -> Dict:
-    """Calculate summary metrics"""
-    if not all_dice_scores:
-        return {}
-
-    all_classes = set()
-    for case_scores in all_dice_scores.values():
-        all_classes.update(case_scores.keys())
-
-    per_class_dice = {}
-    for c in all_classes:
-        class_dices = [scores[c] for scores in all_dice_scores.values()
-                       if c in scores and not np.isnan(scores[c])]
-        if class_dices:
-            per_class_dice[c] = np.mean(class_dices)
-
-    summary = {'per_class_dice': per_class_dice}
-    if per_class_dice:
-        summary['mean_dice'] = np.mean(list(per_class_dice.values()))
-    return summary
-
-
 # ==================== Main Inference Pipeline ====================
 
 def run_inference(args) -> Dict:
@@ -199,6 +164,11 @@ def run_inference(args) -> Dict:
     if seg_col:
         print(f"Segmentation label column: {seg_col}")
 
+    # Filter to validation cases only based on dataset_split.json
+    val_case_ids = load_val_case_ids(args.model_folder, int(args.folds[0]))
+    if val_case_ids is not None:
+        df = filter_df_by_val_cases(df, id_col, val_case_ids)
+
     # Debug mode limit
     if args.max_cases > 0:
         df = df.head(args.max_cases)
@@ -208,7 +178,6 @@ def run_inference(args) -> Dict:
 
     spacing = (1.5, 1.0, 1.0)
     all_results = []
-    all_dice_scores = {}
 
     for idx, row in tqdm(df.iterrows(), total=len(df), desc="Inference"):
         identifier = row[id_col]
@@ -243,7 +212,7 @@ def run_inference(args) -> Dict:
             'identifier': identifier,
             'pred_path': pred_output_path,
             'inference_time': inference_time,
-            'shape': img.shape
+            'shape': list(img.shape)
         }
 
         # Save image and GT
@@ -253,52 +222,39 @@ def run_inference(args) -> Dict:
                 save_nifti(img, image_output_path, spacing=spacing, is_seg=False)
             result['image_path'] = image_output_path
 
-        # If GT labels exist, compute Dice metrics
-        if gt_seg is not None:
-            gt_seg_eval = gt_seg.copy()
-            gt_seg_eval[gt_seg_eval < 0] = 0
-            gt_seg_eval = gt_seg_eval.astype(np.uint8)
-
-            num_classes = predictor.label_manager.num_segmentation_heads
-            dice_scores = compute_dice(pred_seg, gt_seg_eval, num_classes)
-            result['dice_scores'] = dice_scores
-            all_dice_scores[identifier] = dice_scores
-
-            if args.save_images:
+            if gt_seg is not None:
+                gt_seg_eval = gt_seg.copy()
+                gt_seg_eval[gt_seg_eval < 0] = 0
+                gt_seg_eval = gt_seg_eval.astype(np.uint8)
                 gt_output_path = os.path.join(gt_output_dir, f"{identifier}.nii.gz")
                 if not os.path.exists(gt_output_path):
                     save_nifti(gt_seg_eval, gt_output_path, spacing=spacing, is_seg=True)
 
         all_results.append(result)
 
-    # Compute summary metrics
-    summary = compute_summary_metrics(all_dice_scores)
-    summary['total_cases'] = len(all_results)
-    summary['total_time'] = sum(r['inference_time'] for r in all_results)
-    summary['avg_time_per_case'] = summary['total_time'] / len(all_results) if all_results else 0
+    # Compute summary
+    total_time = sum(r['inference_time'] for r in all_results)
+    summary = {
+        'total_cases': len(all_results),
+        'total_time': total_time,
+        'avg_time_per_case': total_time / len(all_results) if all_results else 0
+    }
 
     if torch.cuda.is_available():
         peak_memory_bytes = torch.cuda.max_memory_allocated()
         summary['peak_memory_mb'] = peak_memory_bytes / (1024 * 1024)
 
-    # Save results
-    results_file = os.path.join(args.output, 'results.json')
-    with open(results_file, 'w') as f:
-        json.dump({'summary': summary, 'per_case_results': all_results}, f, indent=2, default=str)
+    # Save predictions.json (inference output, evaluation computes metrics)
+    predictions_file = os.path.join(args.output, 'predictions.json')
+    with open(predictions_file, 'w') as f:
+        json.dump({'summary': summary, 'per_case_results': all_results}, f, indent=2)
 
     # Print summary
     print(f"\n{'='*60}")
     print(f"Total Cases: {summary['total_cases']}")
     print(f"Total Time: {summary['total_time']:.2f}s")
     print(f"Avg Time per Case: {summary['avg_time_per_case']:.2f}s")
-
-    if 'mean_dice' in summary:
-        print(f"\nMean Dice: {summary['mean_dice']:.4f}")
-        print("Per-class Dice:")
-        for c, dice in summary['per_class_dice'].items():
-            print(f"  Class {c}: {dice:.4f}")
-
-    print(f"\nResults saved to: {args.output}")
+    print(f"\nPredictions saved to: {predictions_file}")
     print(f"{'='*60}\n")
 
     return summary

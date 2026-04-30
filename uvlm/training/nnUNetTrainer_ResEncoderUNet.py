@@ -100,6 +100,16 @@ class nnUNetTrainer_ResEncoderUNet(nnUNetTrainer):
 
         if 'continue_training' not in plans:
             plans['continue_training'] = False
+
+        # Print U-VLM citation before nnU-Net citation
+        print(
+            "\n#######################################################################\n"
+            "If U-VLM contributes to your research, please cite our work:\n\n"
+            "Shi, P., Zhang, M., Song, K., Liu, J., Gu, Y., & Zhang, X. (2026). "
+            "U-VLM: Hierarchical Vision Language Modeling for Report Generation. "
+            "arXiv preprint arXiv:2603.00479.\n"
+            "#######################################################################\n")
+
         super().__init__(plans, configuration, fold, dataset_json, device)
 
         self.debug_save_input = False
@@ -408,14 +418,13 @@ class nnUNetTrainer_ResEncoderUNet(nnUNetTrainer):
             (
                 rotation_for_DA,
                 do_dummy_2d_data_aug,
-                _,  # initial_patch_size not used
+                initial_patch_size,
                 mirror_axes,
             ) = self.configure_rotation_dummyDA_mirroring_and_inital_patch_size()
 
             # Training transforms with spatial augmentation
             tr_transforms = self.get_training_transforms(
                 patch_size, rotation_for_DA, deep_supervision_scales, mirror_axes, do_dummy_2d_data_aug,
-                order_resampling_data=3, order_resampling_seg=1,
                 use_mask_for_norm=self.configuration_manager.use_mask_for_norm,
                 is_cascaded=False,
                 foreground_labels=self.label_manager.foreground_labels,
@@ -435,6 +444,7 @@ class nnUNetTrainer_ResEncoderUNet(nnUNetTrainer):
             # Whole mode: minimal augmentation
             mirror_axes = (0, 1, 2)
             self.inference_allowed_mirroring_axes = mirror_axes
+            initial_patch_size = patch_size
 
             # Minimal transforms for whole image mode
             tr_transforms = self.get_validation_transforms(
@@ -446,24 +456,47 @@ class nnUNetTrainer_ResEncoderUNet(nnUNetTrainer):
             )
             val_transforms = tr_transforms
 
-        # Get plain data loaders
-        dl_tr, dl_val = self.get_plain_dataloaders(dim)
+        # Get datasets
+        dataset_tr, dataset_val = self.get_tr_and_val_datasets()
 
-        # Wrap with augmentation
+        # Create dataloaders with transforms - transforms are applied inside nnUNetDataLoader3D
+        # (which converts 'data'/'target' to 'image'/'segmentation' for the transforms)
+        dl_tr = nnUNetDataLoader3D(
+            dataset_tr, self.batch_size,
+            initial_patch_size,
+            self.configuration_manager.patch_size,
+            self.label_manager,
+            oversample_foreground_percent=self.oversample_foreground_percent,
+            sampling_probabilities=None,
+            pad_sides=None,
+            transforms=tr_transforms
+        )
 
+        dl_val = nnUNetDataLoader3D(
+            dataset_val, self.batch_size,
+            self.configuration_manager.patch_size,
+            self.configuration_manager.patch_size,
+            self.label_manager,
+            oversample_foreground_percent=self.oversample_foreground_percent,
+            sampling_probabilities=None,
+            pad_sides=None,
+            transforms=val_transforms
+        )
+
+        # Wrap with multiprocessing - transforms are handled inside the dataloader
         allowed_num_processes = get_allowed_n_proc_DA()
         if allowed_num_processes == 0:
-            mt_gen_train = SingleThreadedAugmenter(dl_tr, tr_transforms)
-            mt_gen_val = SingleThreadedAugmenter(dl_val, val_transforms)
+            mt_gen_train = SingleThreadedAugmenter(dl_tr, None)
+            mt_gen_val = SingleThreadedAugmenter(dl_val, None)
         else:
             mt_gen_train = NonDetMultiThreadedAugmenter(
-                data_loader=dl_tr, transform=tr_transforms,
+                data_loader=dl_tr, transform=None,
                 num_processes=allowed_num_processes,
                 num_cached=max(6, allowed_num_processes // 2), seeds=None,
                 pin_memory=self.device.type == 'cuda', wait_time=0.002
             )
             mt_gen_val = NonDetMultiThreadedAugmenter(
-                data_loader=dl_val, transform=val_transforms,
+                data_loader=dl_val, transform=None,
                 num_processes=max(1, allowed_num_processes // 2),
                 num_cached=max(3, allowed_num_processes // 4), seeds=None,
                 pin_memory=self.device.type == 'cuda', wait_time=0.002
@@ -750,6 +783,9 @@ class nnUNetTrainer_ResEncoderUNet(nnUNetTrainer):
     def initialize(self):
         """Initialize network, optimizer, loss, etc. Consistent with nnUNetTrainer."""
         if not self.was_initialized:
+            # Set batch size and oversample (required for data loaders)
+            self._set_batch_size_and_oversample()
+
             self.num_input_channels = determine_num_input_channels(
                 self.plans_manager, self.configuration_manager, self.dataset_json
             )
@@ -832,6 +868,37 @@ class nnUNetTrainer_ResEncoderUNet(nnUNetTrainer):
                 group['initial_lr'] = self.initial_lr
                 group['lr'] = self.initial_lr
             self.print_to_log_file(f"LR reset to plan value (initial_lr={self.initial_lr})")
+
+    def on_train_start(self):
+        """
+        Override on_train_start to skip dataset unpacking since we read directly from Blosc2 files.
+        """
+        # Initialize network, optimizer, loss if not already done
+        if not self.was_initialized:
+            self.initialize()
+
+        # Create output directory
+        maybe_mkdir_p(self.output_folder)
+
+        # Create dataloaders
+        self.dataloader_train, self.dataloader_val = self.get_dataloaders()
+
+        # Ensure deep supervision is on in the network
+        self.set_deep_supervision_enabled(self.enable_deep_supervision)
+
+        self.print_plans()
+        empty_cache(self.device)
+
+        # Skip unpack_dataset since we use nnUNetDatasetCSVBlosc2 which reads directly from Blosc2
+        # (The base class would call self.dataset_class.unpack_dataset() which is not applicable for our setup)
+        self.print_to_log_file("Skipping unpack_dataset (using Blosc2 files directly)")
+
+        # Copy plans and dataset.json for inference
+        save_json(self.plans_manager.plans, join(self.output_folder_base, 'plans.json'), sort_keys=False)
+        save_json(self.dataset_json, join(self.output_folder_base, 'dataset.json'), sort_keys=False)
+
+        # Produce pdf in output folder
+        self.plot_network_architecture()
 
     def perform_actual_validation(self, save_probabilities: bool = False):
         """

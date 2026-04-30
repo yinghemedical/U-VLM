@@ -101,6 +101,7 @@ def run_training(dataset_name_or_id: Union[int, str],
                  trainer_class_name: str = 'nnUNetTrainer_UVLM',
                  plans_identifier: str = 'nnUNetResEncUNetLPlans',
                  pretrained_weights: str = None,
+                 pretrained_encoder_checkpoint_path: str = None,
                  num_gpus: int = 1,
                  use_compressed: bool = False,
                  export_validation_probabilities: bool = False,
@@ -140,6 +141,13 @@ def run_training(dataset_name_or_id: Union[int, str],
         device
     )
 
+    # Initialize trainer
+    nnunet_trainer.initialize()
+
+    # Load pretrained encoder checkpoint if specified (for progressive training)
+    if pretrained_encoder_checkpoint_path is not None:
+        nnunet_trainer.load_pretrained_encoder(pretrained_encoder_checkpoint_path)
+
     # Load checkpoint if needed
     # Follow nnUNet original implementation: prioritize checkpoint_final -> checkpoint_latest -> checkpoint_best
     if continue_training or only_run_validation:
@@ -159,7 +167,6 @@ def run_training(dataset_name_or_id: Union[int, str],
 
     # Load pretrained weights if specified
     if pretrained_weights is not None:
-        nnunet_trainer.initialize()
         nnunet_trainer.load_checkpoint(pretrained_weights)
 
     # Run training or validation
@@ -193,7 +200,9 @@ def run_training_entry():
     parser.add_argument('-p', '--plans_identifier', type=str, default='nnUNetResEncUNetLPlans',
                         help='Plans identifier (default: nnUNetResEncUNetLPlans)')
     parser.add_argument('-pretrained_weights', type=str, default=None,
-                        help='Path to pretrained weights')
+                        help='Path to pretrained checkpoint (full model weights)')
+    parser.add_argument('--pretrained_encoder_checkpoint_path', type=str, default=None,
+                        help='Path to pretrained encoder checkpoint (for progressive training)')
     parser.add_argument('--c', action='store_true',
                         help='Continue training from checkpoint')
     parser.add_argument('--val', action='store_true',
@@ -218,6 +227,8 @@ def run_training_entry():
     print(f"Trainer: {args.trainer_class_name}")
     print(f"Plans: {args.plans_identifier}")
     print(f"Device: {device}")
+    if args.pretrained_encoder_checkpoint_path:
+        print(f"Pretrained Encoder: {args.pretrained_encoder_checkpoint_path}")
     print("=" * 80)
     print()
 
@@ -228,6 +239,7 @@ def run_training_entry():
         trainer_class_name=args.trainer_class_name,
         plans_identifier=args.plans_identifier,
         pretrained_weights=args.pretrained_weights,
+        pretrained_encoder_checkpoint_path=args.pretrained_encoder_checkpoint_path,
         continue_training=args.c,
         only_run_validation=args.val,
         val_with_best=args.val_best,

@@ -70,6 +70,10 @@ from tqdm import tqdm
 
 from uvlm.inference.predict_cls import nnUNetPredictor
 from uvlm.dataloading.dataset_csv_blosc2 import nnUNetDatasetCSVBlosc2
+from uvlm.inference.inference_utils import (
+    load_val_case_ids, filter_df_by_val_cases,
+    set_seed, parse_gpu_config, build_output_paths
+)
 
 
 # Default configuration
@@ -90,55 +94,6 @@ DEFAULTS = {
 }
 
 
-def set_seed(seed: int):
-    """
-    Set all random seeds for reproducibility.
-
-    Matches trainer's random seed settings exactly:
-    - random.seed(seed)
-    - np.random.seed(seed)
-    - torch.manual_seed(seed)
-    - torch.cuda.manual_seed_all(seed)
-    - cudnn.deterministic = True
-    - cudnn.benchmark = False
-    - os.environ['PYTHONHASHSEED'] = str(seed)
-
-    Args:
-        seed: Random seed value
-    """
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    cudnn.deterministic = True
-    cudnn.benchmark = False
-    os.environ['PYTHONHASHSEED'] = str(seed)
-
-
-def parse_gpu_config(raw: str) -> Dict[int, int]:
-    """Parse GPU config string '0:2,1:2' -> {0: 2, 1: 2}."""
-    config = {}
-    if not raw:
-        return config
-    for token in raw.split(","):
-        token = token.strip()
-        if not token:
-            continue
-        gpu, procs = token.split(":")
-        config[int(gpu)] = int(procs)
-    return config
-
-
-def build_output_paths(args) -> Tuple[str, str, str]:
-    """Build model and output paths."""
-    model_dir = join(
-        args.base_results_dir,
-        args.dataset_name,
-        f"{args.trainer_name}__{args.plans_name}__{args.configuration_name}"
-    )
-    output_dir = join(model_dir, args.output_suffix)
-    output_csv = join(output_dir, "results.csv")
-    return model_dir, output_dir, output_csv
 
 
 def init_predictor(gpu_id: int, args):
@@ -341,32 +296,43 @@ def csv_saver_thread(results_queue: Queue, all_results: list, output_path: str, 
     last_save_time = time.time()
     save_interval = 10  # Save every 10 seconds
 
-    while not stop_event.is_set():
-        # Collect results
-        while not results_queue.empty():
-            result = results_queue.get_nowait()
-            all_results.append(result)
+    while True:
+        # Drain all available results from queue
+        drained_count = 0
+        while True:
+            try:
+                result = results_queue.get_nowait()
+                all_results.append(result)
+                drained_count += 1
+            except:
+                break
 
-        # Save periodically
+        # Save if we drained any items or enough time has passed
         current_time = time.time()
-        should_save = (
-            all_results and
-            (current_time - last_save_time >= save_interval or not os.path.exists(output_path))
-        )
+        if drained_count > 0 or (all_results and current_time - last_save_time >= save_interval):
+            if all_results:
+                print(f"Saving {len(all_results)} results (drained {drained_count} this round)...")
+                df = pd.DataFrame(all_results)
+                df.to_csv(output_path, index=False, encoding='utf-8-sig')
+                last_save_time = current_time
 
-        if should_save:
-            print(f"Saving {len(all_results)} results...")
-            df = pd.DataFrame(all_results)
-            df.to_csv(output_path, index=False, encoding='utf-8-sig')
-            last_save_time = current_time
+        # Check stop event after draining
+        if stop_event.is_set():
+            # Final drain - keep draining until queue is truly empty
+            while True:
+                try:
+                    result = results_queue.get_nowait()
+                    all_results.append(result)
+                except:
+                    break
+            # Final save
+            if all_results:
+                print(f"Final save: {len(all_results)} results")
+                df = pd.DataFrame(all_results)
+                df.to_csv(output_path, index=False, encoding='utf-8-sig')
+            break
 
         time.sleep(1)
-
-    # Final save
-    if all_results:
-        print(f"Final save: {len(all_results)} results")
-        df = pd.DataFrame(all_results)
-        df.to_csv(output_path, index=False, encoding='utf-8-sig')
 
 
 def parse_args():
@@ -443,15 +409,36 @@ def main():
     print(f"Loaded {len(case_keys)} cases from CSV")
     print(f"Sample case keys: {case_keys[:3]}...")
 
+    # Setup paths (needed for loading val_case_ids)
+    model_dir, output_dir, output_csv = build_output_paths(args)
+    args.model_dir = model_dir
+    args.output_csv = output_csv
+
+    # Get validation case IDs from dataset_split.json
+    val_case_ids = load_val_case_ids(model_dir, args.fold)
+    if val_case_ids is None:
+        raise ValueError("val_case_ids not found in dataset_split.json")
+
+    # Build csv_data with all rows for lookup
+    args.csv_data = {row[series_id_col]: row.to_dict() for _, row in csv_df.iterrows()}
+
+    # For each val_case_id, find the first series_id from csv_data
+    # This is because csv_data is keyed by series_id
+    case_keys = []
+    for val_case_id in val_case_ids:
+        # Find a series_id that starts with this case_id
+        for series_id in args.csv_data.keys():
+            if series_id.startswith(val_case_id + '_') or series_id == val_case_id:
+                case_keys.append(series_id)
+                break
+
+    print(f"Validation cases: {len(case_keys)} (one series_id per case)")
+    print(f"Sample case keys: {case_keys[:3]}...")
+
     # Debug limit
     if args.debug_max_cases is not None and args.debug_max_cases > 0:
         case_keys = case_keys[:args.debug_max_cases]
         print(f"DEBUG MODE: Limited to {len(case_keys)} cases")
-
-    # Setup paths
-    model_dir, output_dir, output_csv = build_output_paths(args)
-    args.model_dir = model_dir
-    args.output_csv = output_csv
     args.total_cases = len(case_keys)
     args.gpu_config = parse_gpu_config(args.gpu_config)
 
