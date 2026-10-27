@@ -23,7 +23,7 @@ We propose U-VLM, which enables hierarchical vision-language modeling in both tr
 ---
 
 ## Latest Updates
-
+- **Aug 7, 2026**: U-VLM accepted to MICCAI 2026 [MedAGI Workshop](https://medagi2026.github.io)
 - **Apr 30, 2026**: Full pipeline release — setup, preprocessing, training, inference, evaluation for all tasks
 - **Feb 28, 2026**: Initial core code implementation released
 
