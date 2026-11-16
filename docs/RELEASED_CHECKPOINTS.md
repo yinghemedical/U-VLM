@@ -60,9 +60,8 @@ Paper reference: F1 0.624, BLEU-mean 0.437 (structured main row).
 - CT-RATE reports are scored against the official report text; AbdomenAtlas
   structured reports are scored against `report_structured`.
 
-The released CT-RATE model is a narrative-report model, while the released
-AbdomenAtlas model is a structured-report model. Their metrics are not directly
-comparable across datasets.
+The released CT-RATE model is a narrative-report model. The released
+AbdomenAtlas model is a structured-report model.
 
 No CT-RATE or AbdomenAtlas images, reports, or patient identifiers are included
 in the weight repository.
