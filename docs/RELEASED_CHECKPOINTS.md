@@ -12,7 +12,7 @@ paper table.
 ## CT-RATE
 
 - Target: narrative report (`report` / `report_narrative`)
-- Model: U-VLM 0.1B decoder
+- Language decoder: 0.1B, trained from scratch
 - Checkpoint: `checkpoint_final.pth`
 - Evaluation split: CT-RATE `valid_fixed`
 
@@ -33,7 +33,7 @@ Paper reference: F1 0.414, BLEU-mean 0.349.
 ## AbdomenAtlas 3.0
 
 - Target: structured report (`report_structured`)
-- Model: U-VLM 0.1B decoder
+- Language decoder: 0.1B, trained from scratch
 - Checkpoint: `checkpoint_final.pth`
 - Evaluation split: AbdomenAtlas 3.0 test split used for the paper
 
