@@ -15,7 +15,6 @@ paper table.
 - Model: U-VLM 0.1B decoder
 - Checkpoint: `checkpoint_final.pth`
 - Evaluation split: CT-RATE `valid_fixed`
-- Samples: 3,037 report-bearing volumes
 
 | Metric | Value |
 |---|---:|
@@ -37,7 +36,6 @@ Paper reference: F1 0.414, BLEU-mean 0.349.
 - Model: U-VLM 0.1B decoder
 - Checkpoint: `checkpoint_final.pth`
 - Evaluation split: AbdomenAtlas 3.0 test split used for the paper
-- Samples: 926
 
 | Metric | Value |
 |---|---:|

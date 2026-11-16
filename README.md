@@ -74,10 +74,10 @@ U-VLM achieves F1 of 0.414 and BLEU-mean of 0.349 on [CT-RATE](https://huggingfa
 Two final-epoch checkpoints are available at
 [`yinghemedical/U-VLM`](https://huggingface.co/yinghemedical/U-VLM):
 
-| Dataset | Target | F1 | BLEU-mean | Samples |
-|---|---|---:|---:|---:|
-| CT-RATE | narrative report | 0.4497 | 0.3404 | 3,037 |
-| AbdomenAtlas 3.0 | structured report | 0.5718 | 0.4342 | 926 |
+| Dataset | Target | F1 | BLEU-mean |
+|---|---|---:|---:|
+| CT-RATE | narrative report | 0.4497 | 0.3404 |
+| AbdomenAtlas 3.0 | structured report | 0.5718 | 0.4342 |
 
 These checkpoints were retrained after the paper. Their metrics differ slightly
 from the paper table (CT-RATE: 0.414 / 0.349; AbdomenAtlas: 0.624 / 0.437).
