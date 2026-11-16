@@ -332,7 +332,11 @@ If U-VLM contributes to your research, please cite our work:
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+Code is licensed under the Apache License 2.0; see the [LICENSE](LICENSE) file
+for details.
+
+Released model weights are licensed under CC BY-NC-SA 4.0: non-commercial use,
+attribution required, and derivatives must use the same license.
 
 ---
 
