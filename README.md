@@ -86,8 +86,8 @@ Final-epoch checkpoints are available at
 These are retrained models. Their metrics differ from the paper table
 (CT-RATE: 0.414 / 0.349; AbdomenAtlas: 0.624 / 0.437). See
 [`docs/RELEASED_CHECKPOINTS.md`](docs/RELEASED_CHECKPOINTS.md) for evaluation
-details. Code is Apache-2.0; released weights are CC BY-NC-SA 4.0
-(non-commercial; attribution required, derivatives under the same license).
+details. Code is Apache-2.0; released weights are CC BY-NC 4.0
+(non-commercial use only).
 
 ---
 
@@ -339,8 +339,8 @@ If U-VLM contributes to your research, please cite our work:
 Code is licensed under the Apache License 2.0; see the [LICENSE](LICENSE) file
 for details.
 
-Released model weights are licensed under CC BY-NC-SA 4.0: non-commercial use,
-attribution required, and derivatives must use the same license.
+Released model weights are licensed under CC BY-NC 4.0 (non-commercial use
+only).
 
 ---
 

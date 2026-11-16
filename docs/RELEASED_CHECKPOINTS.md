@@ -7,8 +7,8 @@ https://huggingface.co/yinghemedical/U-VLM
 The checkpoints are retrained models. Metrics below are recomputed from those
 files and differ from the paper table.
 
-Code is Apache-2.0. Released weights are CC BY-NC-SA 4.0 (non-commercial;
-attribution required, derivatives under the same license).
+Code is Apache-2.0. Released weights are CC BY-NC 4.0 (non-commercial use
+only).
 
 ## [CT-RATE](https://huggingface.co/datasets/ibrahimhamamci/CT-RATE)
 
