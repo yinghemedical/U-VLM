@@ -82,7 +82,8 @@ Final-epoch checkpoints are available at
 These are retrained models. Their metrics differ from the paper table
 (CT-RATE: 0.414 / 0.349; AbdomenAtlas: 0.624 / 0.437). See
 [`docs/RELEASED_CHECKPOINTS.md`](docs/RELEASED_CHECKPOINTS.md) for evaluation
-details.
+details. Code is Apache-2.0; released weights are CC BY-NC-SA 4.0
+(non-commercial; attribution required, derivatives under the same license).
 
 ---
 
