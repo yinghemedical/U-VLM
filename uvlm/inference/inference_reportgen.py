@@ -71,6 +71,7 @@ from tqdm import tqdm
 # Use universal predictor supporting both UVLM and Qwen3 models
 from uvlm.inference.predict_reportgen import nnUNetPredictor
 from uvlm.dataloading.dataset_csv_blosc2 import nnUNetDatasetCSVBlosc2
+from uvlm.dataloading.dataset_csv_nifti import nnUNetDatasetCSVNifti
 from nnunetv2.preprocessing.resampling.default_resampling import resample_data_or_seg
 from uvlm.inference.inference_utils import (
     set_seed, parse_gpu_config, build_output_paths
@@ -230,13 +231,29 @@ def predict_on_gpu(gpu_id: int, files_queue: Queue, results_queue: Queue, args):
     # ==================== Initialize predictor ====================
     predictor, data_config = init_predictor(gpu_id, args)
 
-    # ==================== Create dataset (only Blosc2 format supported) ====================
-    dataset = nnUNetDatasetCSVBlosc2(
-        csv_paths=[args.csv_path],
-        verbose=False,
-        strides=data_config['strides'],
-        target_z_size=data_config['target_z_size']
-    )
+    # ==================== Create dataset (Blosc2 or NIfTI) ====================
+    import pandas as pd
+    csv_columns = set(pd.read_csv(args.csv_path, nrows=0).columns)
+    if 'blosc2_path' in csv_columns:
+        dataset = nnUNetDatasetCSVBlosc2(
+            csv_paths=[args.csv_path],
+            verbose=False,
+            strides=data_config['strides'],
+            target_z_size=data_config['target_z_size']
+        )
+    elif 'image_path' in csv_columns or 'nifti_path' in csv_columns:
+        dataset = nnUNetDatasetCSVNifti(
+            csv_paths=[args.csv_path],
+            strides=data_config['strides'],
+            target_size=tuple(data_config['patch_size']),
+            series_id_column=args.series_id_column,
+            image_path_column='image_path' if 'image_path' in csv_columns else 'nifti_path',
+        )
+    else:
+        raise ValueError(
+            "CSV must contain either 'blosc2_path' or 'image_path'/'nifti_path': "
+            f"{sorted(csv_columns)}"
+        )
 
     # Progress bar
     progress_bar = (

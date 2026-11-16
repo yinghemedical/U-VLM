@@ -283,11 +283,16 @@ uvlm_inference report \
     --gpu-config "0:1"
 ```
 
-The input CSV must contain `series_id` and `blosc2_path`. Output is
-`results.csv` with a `generated_report` column. The Qwen3-4B tokenizer is
-bundled in `uvlm/dataloading/tokenizer_qwen3_4b/`; set `UVLM_TOKENIZER_PATH` to
-override it. CT-RATE reports are narrative; AbdomenAtlas reports are
-structured (`report_structured`).
+The input CSV must contain `series_id` and either:
+
+- `blosc2_path` for preprocessed Blosc2 volumes, or
+- `image_path` / `nifti_path` for NIfTI volumes (`.nii` or `.nii.gz`).
+
+NIfTI inputs are z-score normalized, resized, and z-padded/truncated on the
+fly. Output is `results.csv` with a `generated_report` column. The Qwen3-4B
+tokenizer is bundled in `uvlm/dataloading/tokenizer_qwen3_4b/`; set
+`UVLM_TOKENIZER_PATH` to override it. CT-RATE reports are narrative;
+AbdomenAtlas reports are structured (`report_structured`).
 
 ### Evaluation
 
