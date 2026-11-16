@@ -271,14 +271,14 @@ hf download yinghemedical/U-VLM --repo-type model --local-dir /path/to/uvlm_weig
 # CT-RATE, narrative report
 uvlm_inference report \
     --csv-path /path/to/ct_rate_test.csv \
-    --model-dir /path/to/uvlm_weights/nnUNet_results/Dataset1131_CT-RATE/nnUNetTrainer_UVLM__CTRATE_report_192x256x256_clsseg_bal_aug_ds_fr_narr__3d_fullres \
+    --model-dir /path/to/uvlm_weights/Dataset1131_CT-RATE/nnUNetTrainer_UVLM__CTRATE_report_192x256x256_clsseg_bal_aug_ds_fr_narr__3d_fullres \
     --output-dir /path/to/output/ct_rate \
     --gpu-config "0:1"
 
 # AbdomenAtlas 3.0, structured report
 uvlm_inference report \
     --csv-path /path/to/abdomen_test.csv \
-    --model-dir /path/to/uvlm_weights/nnUNet_results/Dataset1141_AbdomenAtlas3.0Mini/nnUNetTrainer_UVLM__ABDOMEN_report_192x256x256_clsseg_seg_coarse_lesion_bal_aug_ds_fr_struct__3d_fullres \
+    --model-dir /path/to/uvlm_weights/Dataset1141_AbdomenAtlas3.0Mini/nnUNetTrainer_UVLM__ABDOMEN_report_192x256x256_clsseg_seg_coarse_lesion_bal_aug_ds_fr_struct__3d_fullres \
     --output-dir /path/to/output/abdomen_atlas \
     --gpu-config "0:1"
 ```
