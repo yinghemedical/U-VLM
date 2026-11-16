@@ -171,8 +171,7 @@ def predict_on_gpu(gpu_id: int, files_queue: Queue, results_queue: Queue, args):
     # Get cls_columns for output
     cls_columns = data_config['cls_columns']
 
-    # ==================== Create dataset (Blosc2 or NIfTI) ====================
-    import pandas as pd
+    # ==================== Input dataset ====================
     csv_columns = set(pd.read_csv(args.csv_path, nrows=0).columns)
     if 'blosc2_path' in csv_columns:
         dataset = nnUNetDatasetCSVBlosc2(
@@ -425,8 +424,7 @@ def main():
     print(f"Loaded {len(case_keys)} cases from CSV")
     print(f"Sample case keys: {case_keys[:3]}...")
 
-    # Setup paths. Inference is driven by the input CSV, not by a
-    # dataset_split.json validation list.
+    # Set output paths.
     model_dir, output_dir, output_csv = build_output_paths(args)
     args.model_dir = model_dir
     args.output_csv = output_csv

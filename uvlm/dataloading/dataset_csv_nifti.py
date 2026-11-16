@@ -1,15 +1,10 @@
-"""NIfTI input for U-VLM report/classification inference.
+"""NIfTI input for U-VLM report and classification inference.
 
-The training pipeline stores preprocessed volumes as Blosc2. This loader adds
-an inference-only path for NIfTI files (``.nii`` / ``.nii.gz``) so users do not
-need to convert their data first.
+Training data is stored as Blosc2. This loader reads NIfTI files (``.nii`` /
+``.nii.gz``) and applies the same normalization and z-axis handling as the
+Blosc2 loader.
 
-CSV columns:
-    series_id, image_path
-
-The image is transposed to (D, H, W), z-score normalized, and padded/truncated
-on the z axis to the checkpoint patch size. The report inference code resizes
-H/W to the patch size before the forward pass.
+CSV columns: ``series_id``, ``image_path``.
 """
 
 import os

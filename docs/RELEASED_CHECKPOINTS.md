@@ -1,13 +1,11 @@
 # Released Checkpoints
 
-We release one final-epoch checkpoint for each dataset on the Hugging Face
-repository:
+One final-epoch checkpoint is provided for each dataset:
 
 https://huggingface.co/yinghemedical/U-VLM
 
-These checkpoints were retrained after the paper. The numbers below are
-recomputed from the released checkpoints and therefore differ slightly from the
-paper table.
+The checkpoints are retrained models. Metrics below are recomputed from those
+files and differ from the paper table.
 
 ## CT-RATE
 
