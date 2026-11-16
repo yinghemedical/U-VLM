@@ -25,9 +25,6 @@ only).
 | BLEU-3 | 0.2845 |
 | BLEU-4 | 0.2359 |
 | BLEU-mean | 0.3404 |
-| ROUGE-L | 0.3335 |
-| CIDEr | 0.1541 |
-| CRG | 0.3239 |
 
 Paper reference: F1 0.414, BLEU-mean 0.349.
 
@@ -46,8 +43,6 @@ Paper reference: F1 0.414, BLEU-mean 0.349.
 | BLEU-3 | 0.3921 |
 | BLEU-4 | 0.3244 |
 | BLEU-mean | 0.4342 |
-| ROUGE-L | 0.6250 |
-| CIDEr | 0.1049 |
 
 Paper reference: F1 0.624, BLEU-mean 0.437 (structured main row).
 
@@ -56,7 +51,7 @@ Paper reference: F1 0.624, BLEU-mean 0.437 (structured main row).
 - CT-RATE F1: RadBERT report-label extraction, 18 classes, threshold 0.5.
 - AbdomenAtlas F1: DeepSeek-based 3-class lesion extraction, following the
   paper protocol.
-- BLEU/ROUGE-L/CIDEr: `pycocoevalcap`.
+- BLEU: `pycocoevalcap`.
 - CT-RATE reports are scored against the official report text; AbdomenAtlas
   structured reports are scored against `report_structured`.
 

@@ -78,10 +78,10 @@ U-VLM achieves F1 of 0.414 and BLEU-mean of 0.349 on [CT-RATE](https://huggingfa
 Final-epoch checkpoints are available at
 [`yinghemedical/U-VLM`](https://huggingface.co/yinghemedical/U-VLM):
 
-| Dataset | Target | F1 | BLEU-mean |
-|---|---|---:|---:|
-| [CT-RATE](https://huggingface.co/datasets/ibrahimhamamci/CT-RATE) | narrative report | 0.4497 | 0.3404 |
-| [AbdomenAtlas 3.0](https://huggingface.co/datasets/AbdomenAtlas/AbdomenAtlas3.0Mini) | structured report | 0.5718 | 0.4342 |
+| Dataset | F1 | BLEU-mean |
+|---|---:|---:|
+| [CT-RATE](https://huggingface.co/datasets/ibrahimhamamci/CT-RATE) | 0.4497 | 0.3404 |
+| [AbdomenAtlas 3.0 (structured)](https://huggingface.co/datasets/AbdomenAtlas/AbdomenAtlas3.0Mini) | 0.5718 | 0.4342 |
 
 These are retrained models. Their metrics differ from the paper table
 (CT-RATE: 0.414 / 0.349; AbdomenAtlas: 0.624 / 0.437). See
