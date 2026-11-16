@@ -24,7 +24,10 @@ We propose U-VLM, which enables hierarchical vision-language modeling in both tr
 ---
 
 ## Latest Updates
-- **Nov 16, 2026**: Released CT-RATE and AbdomenAtlas 3.0 checkpoints.
+- **Nov 16, 2026**: Released
+  [CT-RATE weights](https://huggingface.co/yinghemedical/U-VLM/blob/main/Dataset1131_CT-RATE/nnUNetTrainer_UVLM__CTRATE_report_192x256x256_clsseg_bal_aug_ds_fr_narr__3d_fullres/fold_0/checkpoint_final.pth)
+  and
+  [AbdomenAtlas 3.0 weights](https://huggingface.co/yinghemedical/U-VLM/blob/main/Dataset1141_AbdomenAtlas3.0Mini/nnUNetTrainer_UVLM__ABDOMEN_report_192x256x256_clsseg_seg_coarse_lesion_bal_aug_ds_fr_struct__3d_fullres/fold_0/checkpoint_final.pth).
 - **Aug 7, 2026**: Accepted at MICCAI 2026 [MedAGI Workshop](https://medagi2026.github.io)
 - **Apr 30, 2026**: Full pipeline release — setup, preprocessing, training, inference, evaluation for all tasks
 - **Feb 28, 2026**: Initial core code implementation released
