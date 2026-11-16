@@ -10,7 +10,7 @@ files and differ from the paper table.
 Code is Apache-2.0. Released weights are CC BY-NC-SA 4.0 (non-commercial;
 attribution required, derivatives under the same license).
 
-## CT-RATE
+## [CT-RATE](https://huggingface.co/datasets/ibrahimhamamci/CT-RATE)
 
 - Target: narrative report (`report` / `report_narrative`)
 - Language decoder: 0.1B, trained from scratch
@@ -31,7 +31,7 @@ attribution required, derivatives under the same license).
 
 Paper reference: F1 0.414, BLEU-mean 0.349.
 
-## AbdomenAtlas 3.0
+## [AbdomenAtlas 3.0](https://huggingface.co/datasets/AbdomenAtlas/AbdomenAtlas3.0Mini)
 
 - Target: structured report (`report_structured`)
 - Language decoder: 0.1B, trained from scratch
