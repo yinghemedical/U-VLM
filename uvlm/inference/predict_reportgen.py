@@ -132,6 +132,9 @@ class nnUNetPredictor:
         fold_dir = join(model_training_output_dir, f'fold_{fold}')
         checkpoint_path = join(fold_dir, checkpoint_name)
         checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'), weights_only=False)
+        # Inference only needs network weights; drop optimizer/scaler state.
+        for key in ('optimizer_state', 'grad_scaler_state', 'lr_scheduler_state'):
+            checkpoint.pop(key, None)
 
         trainer_name = checkpoint['trainer_name']
         self.trainer_name = trainer_name
@@ -173,7 +176,7 @@ class nnUNetPredictor:
         # Find trainer in U-VLM training directory
         trainer_class = recursive_find_python_class(
             join(os.path.dirname(__file__), '..', 'training'),
-            trainer_name, 'nnunetv2.training.nnUNetTrainer'
+            trainer_name, 'uvlm.training'
         )
 
         if trainer_class is None:
@@ -192,7 +195,6 @@ class nnUNetPredictor:
             1,  # dummy for segmentation heads
             enable_deep_supervision=False
         )
-
         # ==================== Load weights ====================
         checkpoint_weights = checkpoint['network_weights']
         model_state_dict = network.state_dict()
@@ -242,6 +244,12 @@ class nnUNetPredictor:
             self.report_prompt = getattr(temp_trainer, 'report_prompt', None)
             if self.report_prompt is None:
                 self.report_prompt = "<|im_start|>system\nYou are a radiologist, write standardized reports based only on images.\n<|im_start|>user\nPlease write the report:<|im_end|>\n<|im_start|>assistant\n"
+
+        del temp_trainer
+        import gc
+        gc.collect()
+        if self.device.type == 'cuda':
+            torch.cuda.empty_cache()
 
         if self.verbose:
             print(f"Network loaded successfully")

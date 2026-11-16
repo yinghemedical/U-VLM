@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import pydoc
 import inspect
 import ast
@@ -419,8 +420,12 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
             # Keep original single prompt for backward compatibility
             self.report_prompt = self.report_prompts[0]
 
+            default_tokenizer = os.environ.get(
+                "UVLM_TOKENIZER_PATH",
+                str(Path(__file__).resolve().parent.parent / "dataloading" / "tokenizer_qwen3_4b"),
+            )
             self.tokenizer_path = self.configuration_manager.network_arch_init_kwargs.get(
-                'tokenizer_path', "/yinghepool/shipengcheng/Dataset/nnUNet/nnUNet_raw/Qwen3-4B"
+                'tokenizer_path', default_tokenizer
             )
             os.environ['TOKENIZERS_PARALLELISM'] = 'false'
             self.report_tokenizer = AutoTokenizer.from_pretrained(

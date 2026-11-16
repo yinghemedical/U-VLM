@@ -1,9 +1,27 @@
 from typing import Tuple, Union, List, Optional, Type
+import os
+from pathlib import Path
 import torch
 import torch.nn as nn
 import math
 from dynamic_network_architectures.building_blocks.residual import StackedResidualBlocks, BasicBlockD
 from dynamic_network_architectures.building_blocks.simple_conv_blocks import StackedConvBlocks
+
+
+class RMSNorm(nn.Module):
+    """Bias-free RMS normalization used by the released U-VLM decoder."""
+
+    def __init__(self, dim: int, eps: float = 1e-6):
+        super().__init__()
+        self.eps = eps
+        self.weight = nn.Parameter(torch.ones(dim))
+
+    def forward(self, x):
+        dtype = x.dtype
+        x = x.float()
+        x = x * torch.rsqrt(x.pow(2).mean(dim=-1, keepdim=True) + self.eps)
+        return (x * self.weight).to(dtype)
+
 
 
 # ==================== ResidualEncoder ====================
@@ -310,8 +328,8 @@ class TransformerDecoderLayer(nn.Module):
         self.use_gate = use_gate
 
         self.rope = RotaryEmbedding(self.head_dim, max_seq_len)
-        self.self_attn_norm = nn.LayerNorm(embed_dim)
-        self.ffn_norm = nn.LayerNorm(embed_dim)
+        self.self_attn_norm = RMSNorm(embed_dim)
+        self.ffn_norm = RMSNorm(embed_dim)
 
         self.q_proj = nn.Linear(embed_dim, embed_dim, bias=True)
         self.k_proj = nn.Linear(embed_dim, embed_dim, bias=True)
@@ -807,7 +825,10 @@ class LLMReportGenerator(nn.Module):
 class UVLM(nn.Module):
     def __init__(self, in_channels: int, patch_kernel_sizes: List[Union[int, Tuple[int, int, int]]],
                  enable_report_gen: bool = True,
-                 tokenizer_path: str = "/yinghepool/shipengcheng/Dataset/nnUNet/nnUNet_raw/Qwen3-4B",
+                 tokenizer_path: str = os.environ.get(
+                     "UVLM_TOKENIZER_PATH",
+                     str(Path(__file__).resolve().parent.parent / "dataloading" / "tokenizer_qwen3_4b"),
+                 ),
                  llm_embed_dim: int = 512, report_max_length: int = 8192,
                  num_heads: int = 8, ffn_dim: int = 2048,
                  dropout: float = 0.0, use_weight_tying: bool = True, use_deepstack: bool = False,

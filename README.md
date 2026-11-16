@@ -4,6 +4,7 @@
 
 [![arXiv](https://img.shields.io/badge/arXiv-2603.00479-B31B1B.svg)](https://arxiv.org/abs/2603.00479)
 [![GitHub](https://img.shields.io/badge/GitHub-U--VLM-181717?logo=github&logoColor=white)](https://github.com/yinghemedical/U-VLM)
+[![HuggingFace](https://img.shields.io/badge/🤗%20HuggingFace-Weights-yellow.svg)](https://huggingface.co/yinghemedical/U-VLM)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 </div>
@@ -23,6 +24,7 @@ We propose U-VLM, which enables hierarchical vision-language modeling in both tr
 ---
 
 ## Latest Updates
+- **Nov 16, 2026**: Released CT-RATE and AbdomenAtlas 3.0 checkpoints.
 - **Aug 7, 2026**: Accepted at MICCAI 2026 [MedAGI Workshop](https://medagi2026.github.io)
 - **Apr 30, 2026**: Full pipeline release — setup, preprocessing, training, inference, evaluation for all tasks
 - **Feb 28, 2026**: Initial core code implementation released
@@ -66,6 +68,21 @@ U-VLM achieves F1 of 0.414 and BLEU-mean of 0.349 on [CT-RATE](https://huggingfa
 |---------|-------|-----------|---------|
 | **CT-RATE** | **0.414** vs 0.258 | **0.349** vs 0.305 | 0.1B (scratch) |
 | **AbdomenAtlas 3.0** | **0.624** vs 0.518 | **0.437** | 0.1B (scratch) |
+
+### Released Checkpoints
+
+Two final-epoch checkpoints are available at
+[`yinghemedical/U-VLM`](https://huggingface.co/yinghemedical/U-VLM):
+
+| Dataset | Target | F1 | BLEU-mean | Samples |
+|---|---|---:|---:|---:|
+| CT-RATE | narrative report | 0.4497 | 0.3404 | 3,037 |
+| AbdomenAtlas 3.0 | structured report | 0.5718 | 0.4342 | 926 |
+
+These checkpoints were retrained after the paper. Their metrics differ slightly
+from the paper table (CT-RATE: 0.414 / 0.349; AbdomenAtlas: 0.624 / 0.437).
+See [`docs/RELEASED_CHECKPOINTS.md`](docs/RELEASED_CHECKPOINTS.md) for the full
+metric breakdown, evaluation protocol, and caveats.
 
 ---
 
@@ -243,6 +260,34 @@ uvlm_inference report \
     --output-dir /path/to/output \
     --gpu-config "0:1"
 ```
+
+### Inference with Released Checkpoints
+
+Download the weights and point `--model-dir` at the corresponding model folder:
+
+```bash
+hf download yinghemedical/U-VLM --repo-type model --local-dir /path/to/uvlm_weights
+
+# CT-RATE, narrative report
+uvlm_inference report \
+    --csv-path /path/to/ct_rate_test.csv \
+    --model-dir /path/to/uvlm_weights/nnUNet_results/Dataset1131_CT-RATE/nnUNetTrainer_UVLM__CTRATE_report_192x256x256_clsseg_bal_aug_ds_fr_narr__3d_fullres \
+    --output-dir /path/to/output/ct_rate \
+    --gpu-config "0:1"
+
+# AbdomenAtlas 3.0, structured report
+uvlm_inference report \
+    --csv-path /path/to/abdomen_test.csv \
+    --model-dir /path/to/uvlm_weights/nnUNet_results/Dataset1141_AbdomenAtlas3.0Mini/nnUNetTrainer_UVLM__ABDOMEN_report_192x256x256_clsseg_seg_coarse_lesion_bal_aug_ds_fr_struct__3d_fullres \
+    --output-dir /path/to/output/abdomen_atlas \
+    --gpu-config "0:1"
+```
+
+The input CSV must contain `series_id` and `blosc2_path`. Output is
+`results.csv` with a `generated_report` column. The Qwen3-4B tokenizer is
+bundled in `uvlm/dataloading/tokenizer_qwen3_4b/`; set `UVLM_TOKENIZER_PATH` to
+override it. CT-RATE reports are narrative; AbdomenAtlas reports are
+structured (`report_structured`).
 
 ### Evaluation
 

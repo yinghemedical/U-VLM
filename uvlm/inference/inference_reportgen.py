@@ -73,7 +73,6 @@ from uvlm.inference.predict_reportgen import nnUNetPredictor
 from uvlm.dataloading.dataset_csv_blosc2 import nnUNetDatasetCSVBlosc2
 from nnunetv2.preprocessing.resampling.default_resampling import resample_data_or_seg
 from uvlm.inference.inference_utils import (
-    load_val_case_ids, filter_df_by_val_cases, get_unique_cases,
     set_seed, parse_gpu_config, build_output_paths
 )
 
@@ -511,28 +510,13 @@ def main(args=None):
     print(f"Loaded {len(case_keys)} cases from CSV")
     print(f"Sample case keys: {case_keys[:3]}...")
 
-    # Setup paths (needed for loading val_case_ids)
+    # Setup paths. Inference is driven by the input CSV, not by a
+    # dataset_split.json validation list.
     model_dir, output_dir, output_csv = build_output_paths(args)
     args.model_dir = model_dir
     args.output_csv = output_csv
 
-    # Get validation case IDs from dataset_split.json
-    val_case_ids = load_val_case_ids(model_dir, args.fold)
-    if val_case_ids is None:
-        raise ValueError("val_case_ids not found in dataset_split.json")
-
-    # Build csv_data with all rows for lookup
-    args.csv_data = {row[series_id_col]: row.to_dict() for _, row in csv_df.iterrows()}
-
-    # For each val_case_id, find the first series_id from csv_data
-    case_keys = []
-    for val_case_id in val_case_ids:
-        for series_id in args.csv_data.keys():
-            if series_id.startswith(val_case_id + '_') or series_id == val_case_id:
-                case_keys.append(series_id)
-                break
-
-    print(f"Validation cases: {len(case_keys)} (one series_id per case)")
+    print(f"Inference cases: {len(case_keys)} (one series_id per CSV row)")
     print(f"Sample case keys: {case_keys[:3]}...")
 
     # Debug limit

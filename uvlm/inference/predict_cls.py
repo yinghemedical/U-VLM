@@ -182,7 +182,7 @@ class nnUNetPredictor:
         num_input_channels = determine_num_input_channels(plans_manager, configuration_manager, dataset_json)
         trainer_class = recursive_find_python_class(
             join(os.path.dirname(__file__), '..', 'training'),
-            trainer_name, 'nnunetv2.training.nnUNetTrainer'
+            trainer_name, 'uvlm.training'
         )
 
         if trainer_class is None:
