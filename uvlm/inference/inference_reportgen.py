@@ -94,7 +94,7 @@ DEFAULTS = {
     "random_seed": 42,
     "num_repeats": 1,  # Number of seeds to test per case
     # LLM Generation Parameters
-    "max_new_tokens": 512,  # Maximum number of tokens to generate
+    "max_new_tokens": None,  # None = use the checkpoint's value
     "temperature": 0.1,  # Temperature parameter, lower values yield more deterministic outputs
     "top_p": 0.9,  # nucleus sampling
     "top_k": 50,  # top-k sampling
@@ -471,7 +471,7 @@ def parse_args():
 
     # LLM Generation Parameters
     parser.add_argument("--max-new-tokens", type=int, default=DEFAULTS["max_new_tokens"],
-                        help="Maximum number of new tokens to generate")
+                        help="Maximum number of new tokens to generate; default uses the checkpoint value")
     parser.add_argument("--temperature", type=float, default=DEFAULTS["temperature"],
                         help="Temperature for LLM generation (lower = more deterministic)")
     parser.add_argument("--top-p", type=float, default=DEFAULTS["top_p"],

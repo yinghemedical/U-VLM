@@ -3,24 +3,25 @@ import os
 from pathlib import Path
 import torch
 import torch.nn as nn
-import math
+import torch.nn.functional as F
 from dynamic_network_architectures.building_blocks.residual import StackedResidualBlocks, BasicBlockD
 from dynamic_network_architectures.building_blocks.simple_conv_blocks import StackedConvBlocks
 
 
 class RMSNorm(nn.Module):
-    """Bias-free RMS normalization used by the released U-VLM decoder."""
+    """Bias-free RMS normalization used by the released U-VLM decoder.
+
+    The released checkpoints use the Qwen-style ``(1 + weight)`` convention;
+    ``weight`` is initialized to zero.
+    """
 
     def __init__(self, dim: int, eps: float = 1e-6):
         super().__init__()
         self.eps = eps
-        self.weight = nn.Parameter(torch.ones(dim))
+        self.weight = nn.Parameter(torch.zeros(dim))
 
     def forward(self, x):
-        dtype = x.dtype
-        x = x.float()
-        x = x * torch.rsqrt(x.pow(2).mean(dim=-1, keepdim=True) + self.eps)
-        return (x * self.weight).to(dtype)
+        return x * torch.rsqrt(x.pow(2).mean(dim=-1, keepdim=True) + self.eps) * (1.0 + self.weight.float()).type_as(x)
 
 
 
@@ -296,24 +297,23 @@ def apply_3d_rotary_pos_emb(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tenso
     return x_rot
 
 
+def rotate_half(x: torch.Tensor):
+    """Rotate the two halves of the head dimension (contiguous RoPE layout)."""
+    x1, x2 = x[..., : x.shape[-1] // 2], x[..., x.shape[-1] // 2 :]
+    return torch.cat((-x2, x1), dim=-1)
+
+
 def apply_rotary_pos_emb(q: torch.Tensor, k: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
     """Apply RoPE to Q/K: [B, num_heads, seq_len, head_dim]."""
-    cos = cos.unsqueeze(0).unsqueeze(0)
-    sin = sin.unsqueeze(0).unsqueeze(0)
-    
-    q_even, q_odd = q[..., 0::2], q[..., 1::2]
-    k_even, k_odd = k[..., 0::2], k[..., 1::2]
-    cos_even, sin_even = cos[..., 0::2], sin[..., 0::2]
-    cos_odd, sin_odd = cos[..., 1::2], sin[..., 1::2]
-    
-    q_rot_even = q_even * cos_even - q_odd * sin_even
-    q_rot_odd = q_even * sin_odd + q_odd * cos_odd
-    k_rot_even = k_even * cos_even - k_odd * sin_even
-    k_rot_odd = k_even * sin_odd + k_odd * cos_odd
-    
-    q_rot = torch.stack((q_rot_even, q_rot_odd), dim=-1).flatten(-2)
-    k_rot = torch.stack((k_rot_even, k_rot_odd), dim=-1).flatten(-2)
-    return q_rot, k_rot
+    if cos.dim() == 2:
+        cos = cos.unsqueeze(0)
+        sin = sin.unsqueeze(0)
+    cos = cos.unsqueeze(1)
+    sin = sin.unsqueeze(1)
+
+    q_embed = q * cos + rotate_half(q) * sin
+    k_embed = k * cos + rotate_half(k) * sin
+    return q_embed, k_embed
 
 
 # ==================== Transformer Decoder Layer ====================
@@ -373,20 +373,27 @@ class TransformerDecoderLayer(nn.Module):
         v = self.v_proj(x_norm).view(B, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
 
         q, k = apply_rotary_pos_emb(q, k, cos, sin)
-        attn_scores = (q @ k.transpose(-2, -1)) / math.sqrt(self.head_dim)
 
+        combined_mask = None
         if attn_mask is not None:
-            # Ensure mask has same dtype as attn_scores
-            attn_mask = attn_mask.to(dtype=attn_scores.dtype, device=attn_scores.device)
-            attn_scores = attn_scores + attn_mask
+            combined_mask = attn_mask.to(dtype=q.dtype, device=q.device)
         if key_padding_mask is not None:
-            attn_scores = attn_scores.masked_fill(
-                key_padding_mask.unsqueeze(1).unsqueeze(2), float('-inf')
+            pad_mask = key_padding_mask.unsqueeze(1).unsqueeze(2)  # [B, 1, 1, L]
+            pad_mask = torch.where(
+                pad_mask,
+                torch.tensor(float('-inf'), device=q.device, dtype=q.dtype),
+                torch.tensor(0.0, device=q.device, dtype=q.dtype),
             )
+            if combined_mask is not None:
+                combined_mask = (combined_mask + pad_mask
+                                 if combined_mask.dim() > 2 else combined_mask.unsqueeze(0) + pad_mask)
+            else:
+                combined_mask = pad_mask
 
-        attn_weights = torch.softmax(attn_scores, dim=-1)
-        attn_weights = self.dropout(attn_weights)
-        attn_output = attn_weights @ v
+        attn_output = F.scaled_dot_product_attention(
+            q, k, v, attn_mask=combined_mask,
+            dropout_p=self.dropout.p if self.training else 0.0,
+        )
         attn_output = attn_output.transpose(1, 2).contiguous().view(B, seq_len, -1)
         attn_output = self.out_proj(attn_output)
         x = resid + self.dropout(attn_output)

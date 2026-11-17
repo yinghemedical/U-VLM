@@ -400,7 +400,8 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
                         continue
                     if line.startswith('<|im_start|>system'):
                         if current_prompt:
-                            prompts.append('\n'.join(current_prompt))
+                            # Preserve the newline after "<|im_start|>assistant".
+                            prompts.append('\n'.join(current_prompt) + '\n')
                         current_prompt = [line]
                         in_prompt = True
                     elif in_prompt:
@@ -408,7 +409,7 @@ class nnUNetTrainer_UVLM(nnUNetTrainer):
 
                 # Add the last prompt
                 if current_prompt:
-                    prompts.append('\n'.join(current_prompt))
+                    prompts.append('\n'.join(current_prompt) + '\n')
 
                 self.report_prompts = prompts
                 self.print_to_log_file(f"Loaded {len(self.report_prompts)} report prompts from {prompts_file}")

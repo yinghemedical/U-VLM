@@ -234,7 +234,8 @@ class nnUNetPredictor:
         self.network = network
 
         # ==================== Extract generation parameters ====================
-        self.report_max_new_tokens = network_arch_init_kwargs.get('report_max_new_tokens', 512)
+        self.report_max_new_tokens = network_arch_init_kwargs.get(
+            'report_max_new_tokens', network_arch_init_kwargs.get('max_new_tokens', 512))
         self.generation_temperature = network_arch_init_kwargs.get('generation_temperature', 0.7)
         self.generation_top_p = network_arch_init_kwargs.get('generation_top_p', 0.9)
         self.generation_top_k = network_arch_init_kwargs.get('generation_top_k', 50)
@@ -243,7 +244,7 @@ class nnUNetPredictor:
         if self.mode in ['only_report', 'both']:
             self.report_prompt = getattr(temp_trainer, 'report_prompt', None)
             if self.report_prompt is None:
-                self.report_prompt = "<|im_start|>system\nYou are a radiologist, write standardized reports based only on images.\n<|im_start|>user\nPlease write the report:<|im_end|>\n<|im_start|>assistant\n"
+                self.report_prompt = "<|im_start|>system\nYou are a radiologist who writes standardized reports based only on images.\n<|im_start|>user\nPlease write a report:<|im_end|>\n<|im_start|>assistant\n"
 
         del temp_trainer
         import gc
@@ -277,7 +278,8 @@ class nnUNetPredictor:
         self.target_z_size = self.patch_size[0]
 
         network_arch_init_kwargs = configuration_manager.network_arch_init_kwargs
-        self.report_max_new_tokens = network_arch_init_kwargs.get('report_max_new_tokens', 512)
+        self.report_max_new_tokens = network_arch_init_kwargs.get(
+            'report_max_new_tokens', network_arch_init_kwargs.get('max_new_tokens', 512))
         self.generation_temperature = network_arch_init_kwargs.get('generation_temperature', 0.7)
         self.generation_top_p = network_arch_init_kwargs.get('generation_top_p', 0.9)
         self.generation_top_k = network_arch_init_kwargs.get('generation_top_k', 50)
@@ -292,7 +294,7 @@ class nnUNetPredictor:
         if report_prompt is not None:
             self.report_prompt = report_prompt
         else:
-            self.report_prompt = "<|im_start|>system\nYou are a radiologist, write standardized reports based only on images.\n<|im_start|>user\nPlease write the report:<|im_end|>\n<|im_start|>assistant\n"
+            self.report_prompt = "<|im_start|>system\nYou are a radiologist who writes standardized reports based only on images.\n<|im_start|>user\nPlease write a report:<|im_end|>\n<|im_start|>assistant\n"
 
         if self.verbose:
             print(f"Manual initialization completed for: {trainer_name}")
