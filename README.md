@@ -24,6 +24,9 @@ We propose U-VLM, which enables hierarchical vision-language modeling in both tr
 ---
 
 ## Latest Updates
+- **Nov 18, 2026**: Fixed released-checkpoint inference and added full
+  four-column prediction CSVs to Hugging Face; metrics recomputed on the full
+  validation/test splits.
 - **Nov 16, 2026**: Uploaded retrained
   [CT-RATE weights](https://huggingface.co/yinghemedical/U-VLM/blob/main/Dataset1131_CT-RATE/nnUNetTrainer_UVLM__CTRATE_report_192x256x256_clsseg_bal_aug_ds_fr_narr__3d_fullres/fold_0/checkpoint_final.pth)
   and
@@ -80,11 +83,16 @@ Final-epoch checkpoints are available at
 
 | Dataset | F1 | BLEU-mean |
 |---|---:|---:|
-| [CT-RATE](https://huggingface.co/datasets/ibrahimhamamci/CT-RATE) | 0.4497 | 0.3404 |
-| [AbdomenAtlas 3.0 (structured)](https://huggingface.co/datasets/AbdomenAtlas/AbdomenAtlas3.0Mini) | 0.5718 | 0.4342 |
+| [CT-RATE](https://huggingface.co/datasets/ibrahimhamamci/CT-RATE) | 0.4506 | 0.3404 |
+| [AbdomenAtlas 3.0 (structured)](https://huggingface.co/datasets/AbdomenAtlas/AbdomenAtlas3.0Mini) | 0.5791 | 0.4337 |
+
+Full four-column inference outputs are available at
+[`inference_results/`](https://huggingface.co/yinghemedical/U-VLM/tree/main/inference_results):
+3,039 CT-RATE validation cases and 926 AbdomenAtlas 3.0 test cases.
 
 These are retrained models. Their metrics differ from the paper table
-(CT-RATE: 0.414 / 0.349; AbdomenAtlas: 0.624 / 0.437). See
+(CT-RATE: 0.414 / 0.349; AbdomenAtlas: 0.624 / 0.437) and are recomputed on
+the full validation/test splits with `max_new_tokens=512`. See
 [`docs/RELEASED_CHECKPOINTS.md`](docs/RELEASED_CHECKPOINTS.md) for evaluation
 details. Code is Apache-2.0; released weights are CC BY-NC 4.0
 (non-commercial use only).

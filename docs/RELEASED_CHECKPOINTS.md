@@ -15,15 +15,16 @@ only).
 - Target: narrative report (`report` / `report_narrative`)
 - Language decoder: 0.1B, trained from scratch
 - Checkpoint: `checkpoint_final.pth`
-- Evaluation split: CT-RATE `valid_fixed`
+- Evaluation split: CT-RATE `valid_fixed` (3,039 cases)
+- Generation: `max_new_tokens=512`
 
 | Metric | Value |
 |---|---:|
-| Macro F1 (RadBERT) | 0.4497 |
-| BLEU-1 | 0.4819 |
+| Macro F1 (RadBERT) | 0.4506 |
+| BLEU-1 | 0.4818 |
 | BLEU-2 | 0.3595 |
 | BLEU-3 | 0.2845 |
-| BLEU-4 | 0.2359 |
+| BLEU-4 | 0.2358 |
 | BLEU-mean | 0.3404 |
 
 Paper reference: F1 0.414, BLEU-mean 0.349.
@@ -33,18 +34,29 @@ Paper reference: F1 0.414, BLEU-mean 0.349.
 - Target: structured report (`report_structured`)
 - Language decoder: 0.1B, trained from scratch
 - Checkpoint: `checkpoint_final.pth`
-- Evaluation split: AbdomenAtlas 3.0 test split used for the paper
+- Evaluation split: AbdomenAtlas 3.0 test split used for the paper (926 cases)
+- Generation: `max_new_tokens=512`
 
 | Metric | Value |
 |---|---:|
-| Macro F1 (DeepSeek label extraction) | 0.5718 |
-| BLEU-1 | 0.5569 |
-| BLEU-2 | 0.4635 |
-| BLEU-3 | 0.3921 |
-| BLEU-4 | 0.3244 |
-| BLEU-mean | 0.4342 |
+| Macro F1 (DeepSeek label extraction) | 0.5791 |
+| BLEU-1 | 0.5562 |
+| BLEU-2 | 0.4629 |
+| BLEU-3 | 0.3916 |
+| BLEU-4 | 0.3240 |
+| BLEU-mean | 0.4337 |
 
 Paper reference: F1 0.624, BLEU-mean 0.437 (structured main row).
+
+## Inference Outputs
+
+The weight repository includes full four-column prediction CSVs:
+
+- [`inference_results/ct_rate_validation.csv`](https://huggingface.co/yinghemedical/U-VLM/blob/main/inference_results/ct_rate_validation.csv) — 3,039 cases.
+- [`inference_results/abdomenatlas3_test.csv`](https://huggingface.co/yinghemedical/U-VLM/blob/main/inference_results/abdomenatlas3_test.csv) — 926 cases.
+
+Columns: `case`, `resized_image_shape`, `ground_truth_report`,
+`predicted_report`. Predictions use `max_new_tokens=512`.
 
 ## Evaluation Protocol
 
