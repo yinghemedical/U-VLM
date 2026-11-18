@@ -24,8 +24,8 @@ We propose U-VLM, which enables hierarchical vision-language modeling in both tr
 ---
 
 ## Latest Updates
-- **Nov 16, 2026**: Uploaded retrained CT-RATE and AbdomenAtlas 3.0 weights,
-  four-column prediction CSVs, and recomputed metrics to
+- **Nov 16, 2026**: Released retrained CT-RATE and AbdomenAtlas 3.0 weights,
+  prediction CSVs, and updated metrics on
   [Hugging Face](https://huggingface.co/yinghemedical/U-VLM).
 - **Aug 7, 2026**: Accepted at MICCAI 2026 [MedAGI Workshop](https://medagi2026.github.io)
 - **Apr 30, 2026**: Full pipeline release — setup, preprocessing, training, inference, evaluation for all tasks
